@@ -60,15 +60,109 @@ model Outlet {
   @@index([chainId])
 }
 
-// userId intentionally has no relation to a User model yet — User (FR-13) doesn't
-// exist until the next build-order step. The FK relation is added when FR-13 lands.
 model UserAccess {
   id        String   @id @default(uuid())
   userId    String
+  user      User     @relation(fields: [userId], references: [id])
   scopeType String // ScopeType: CHAIN | PROPERTY | OUTLET
   scopeId   String // a chainId, propertyId, or outletId, depending on scopeType
   role      String // Role: CHAIN_OWNER | PROPERTY_MANAGER | OUTLET_MANAGER | STORE_STAFF | CHEF
   createdAt DateTime @default(now())
 
   @@unique([userId, scopeType, scopeId])
+  @@index([userId])
+}
+
+// FR-13: Authentication & Login (with Two-Factor Authentication)
+// TwoFactorMethod (TOTP | SMS | EMAIL) is a String column, not a Prisma `enum`
+// block — see the header note above; enforced via src/auth/constants/enums.ts.
+
+model User {
+  id                  String               @id @default(uuid())
+  email               String               @unique
+  phone               String?
+  passwordHash        String
+  preferredLanguage   String               @default("en") // 'en' | 'ar'
+  preferredCurrency   String               @default("SAR")
+  isActive            Boolean              @default(true)
+  lastLoginAt         DateTime?
+  createdAt           DateTime             @default(now())
+  // role is no longer a flat field — see FR-00 UserAccess for per-scope role assignment
+  twoFactor           TwoFactorAuth?
+  userAccesses        UserAccess[]
+  refreshTokens       RefreshToken[]
+  passwordResets      PasswordResetToken[]
+  trustedDevices      TrustedDevice[]
+  twoFactorChallenges TwoFactorChallenge[]
+}
+
+model TwoFactorAuth {
+  id               String                @id @default(uuid())
+  userId           String                @unique
+  user             User                  @relation(fields: [userId], references: [id])
+  isEnabled        Boolean               @default(false)
+  method           String                @default("TOTP") // TwoFactorMethod: TOTP | SMS | EMAIL
+  totpSecret       String? // encrypted at rest; only set if method = TOTP
+  enforcedByPolicy Boolean               @default(false) // true if CHAIN_OWNER has mandated 2FA for all users in the tenant
+  enrolledAt       DateTime?
+  backupCodes      TwoFactorBackupCode[]
+}
+
+model TwoFactorBackupCode {
+  id              String        @id @default(uuid())
+  twoFactorAuthId String
+  twoFactorAuth   TwoFactorAuth @relation(fields: [twoFactorAuthId], references: [id])
+  codeHash        String // single-use recovery code, hashed
+  usedAt          DateTime?
+  createdAt       DateTime      @default(now())
+
+  @@index([twoFactorAuthId])
+}
+
+model TwoFactorChallenge {
+  id           String    @id @default(uuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id])
+  code         String? // hashed OTP, for SMS/EMAIL method; null for TOTP (verified against totpSecret directly)
+  method       String // TwoFactorMethod: TOTP | SMS | EMAIL
+  expiresAt    DateTime // short-lived, e.g. 5-10 minutes
+  attemptCount Int       @default(0)
+  consumedAt   DateTime?
+
+  @@index([userId])
+}
+
+model TrustedDevice {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  deviceToken String   @unique // sha256 hash of the raw token stored client-side; presented to skip 2FA on "remember this device"
+  deviceLabel String? // e.g. "Manager's iPhone", "Front Desk PC"
+  expiresAt   DateTime // e.g. 30 days
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}
+
+model RefreshToken {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  tokenHash  String
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  deviceInfo String?
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  @@index([userId])
 }

@@ -31,6 +31,12 @@ import { PrismaUserAccessRepository } from './repositories/prisma/prisma-user-ac
     { provide: OUTLET_REPOSITORY, useClass: PrismaOutletRepository },
     { provide: USER_ACCESS_REPOSITORY, useClass: PrismaUserAccessRepository },
   ],
-  exports: [ScopeResolutionService, ScopeResolutionGuard],
+  exports: [
+    ScopeResolutionService,
+    ScopeResolutionGuard,
+    PROPERTY_REPOSITORY,
+    OUTLET_REPOSITORY,
+    USER_ACCESS_REPOSITORY,
+  ],
 })
 export class TenancyModule {}

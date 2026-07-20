@@ -29,4 +29,14 @@ export class PrismaUserAccessRepository implements UserAccessRepository {
     const row = await this.prisma.userAccess.create({ data });
     return toDomain(row);
   }
+
+  async findUserIdsByScope(scopeType: ScopeType, scopeIds: string[]): Promise<string[]> {
+    if (scopeIds.length === 0) return [];
+    const rows = await this.prisma.userAccess.findMany({
+      where: { scopeType, scopeId: { in: scopeIds } },
+      select: { userId: true },
+      distinct: ['userId'],
+    });
+    return rows.map((r) => r.userId);
+  }
 }

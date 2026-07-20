@@ -11,4 +11,6 @@ export interface CreateUserAccessInput {
 export interface UserAccessRepository {
   findByUserId(userId: string): Promise<UserAccess[]>;
   create(data: CreateUserAccessInput): Promise<UserAccess>;
+  /** Distinct userIds holding any grant at the given scope type over any of the given scope ids. */
+  findUserIdsByScope(scopeType: ScopeType, scopeIds: string[]): Promise<string[]>;
 }

@@ -3,13 +3,16 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { TokenService } from '../src/auth/services/token.service';
+import { PasswordService } from '../src/auth/services/password.service';
 
 /**
  * Exercises FR-00's endpoints end-to-end against a real (test) SQL Server
- * database. There is no auth yet (FR-13 hasn't been built), so this test
- * simulates "an upstream auth guard already populated request.user" via a
- * plain header + middleware registered only here in the test — the app
- * itself never contains this shortcut.
+ * database. Now that FR-13 exists, `request.user` is populated by the real
+ * JwtAuthGuard from a Bearer token — the old `x-test-user-id` header
+ * shortcut (used before any auth existed) is gone. Each test seeds a real
+ * `User` row (UserAccess.userId is now a real FK) and mints a genuine access
+ * token via TokenService.
  *
  * Requires the docker-compose SQL Server to be up and DATABASE_URL to point
  * at it: `docker compose up -d && npx prisma migrate deploy && npm run test:e2e`.
@@ -17,6 +20,8 @@ import { PrismaService } from '../src/prisma/prisma.service';
 describe('Tenancy (FR-00) e2e', () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  let tokenService: TokenService;
+  let passwordService: PasswordService;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -28,14 +33,11 @@ describe('Tenancy (FR-00) e2e', () => {
     app.useGlobalPipes(
       new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
     );
-    app.use((req: any, _res: any, next: any) => {
-      const userId = req.header('x-test-user-id');
-      if (userId) req.user = { id: userId };
-      next();
-    });
     await app.init();
 
     prisma = app.get(PrismaService);
+    tokenService = app.get(TokenService);
+    passwordService = app.get(PasswordService);
   });
 
   afterAll(async () => {
@@ -47,20 +49,30 @@ describe('Tenancy (FR-00) e2e', () => {
     await prisma.outlet.deleteMany();
     await prisma.property.deleteMany();
     await prisma.chain.deleteMany();
+    await prisma.user.deleteMany();
   });
+
+  /** Seeds a real User row and returns its id plus a valid Bearer access token. */
+  async function createAuthedUser(email: string): Promise<{ userId: string; token: string }> {
+    const user = await prisma.user.create({
+      data: { email, passwordHash: await passwordService.hash('irrelevant-for-this-suite') },
+    });
+    return { userId: user.id, token: tokenService.signAccessToken(user.id) };
+  }
 
   it('lets a CHAIN_OWNER view a property with no explicit per-outlet grant', async () => {
     const chain = await prisma.chain.create({ data: { name: 'Al Waha Group' } });
     const property = await prisma.property.create({
       data: { chainId: chain.id, name: 'Jeddah Hotel', type: 'HOTEL' },
     });
+    const { userId, token } = await createAuthedUser('owner-1@example.com');
     await prisma.userAccess.create({
-      data: { userId: 'owner-1', scopeType: 'CHAIN', scopeId: chain.id, role: 'CHAIN_OWNER' },
+      data: { userId, scopeType: 'CHAIN', scopeId: chain.id, role: 'CHAIN_OWNER' },
     });
 
     const res = await request(app.getHttpServer())
       .get(`/api/v1/properties/${property.id}`)
-      .set('x-test-user-id', 'owner-1')
+      .set('Authorization', `Bearer ${token}`)
       .expect(200);
 
     expect(res.body.id).toBe(property.id);
@@ -74,35 +86,43 @@ describe('Tenancy (FR-00) e2e', () => {
     const propertyB = await prisma.property.create({
       data: { chainId: chain.id, name: 'Riyadh Hotel', type: 'HOTEL' },
     });
+    const { userId, token } = await createAuthedUser('mgr-1@example.com');
     await prisma.userAccess.create({
-      data: { userId: 'mgr-1', scopeType: 'PROPERTY', scopeId: propertyA.id, role: 'PROPERTY_MANAGER' },
+      data: { userId, scopeType: 'PROPERTY', scopeId: propertyA.id, role: 'PROPERTY_MANAGER' },
     });
 
     await request(app.getHttpServer())
       .get(`/api/v1/properties/${propertyB.id}`)
-      .set('x-test-user-id', 'mgr-1')
+      .set('Authorization', `Bearer ${token}`)
       .expect(403);
   });
 
   it('only lets CHAIN_OWNER create a property under a chain', async () => {
     const chain = await prisma.chain.create({ data: { name: 'Al Waha Group' } });
+    const mgr = await createAuthedUser('mgr-1@example.com');
     await prisma.userAccess.create({
-      data: { userId: 'mgr-1', scopeType: 'PROPERTY', scopeId: 'some-other-property', role: 'PROPERTY_MANAGER' },
+      data: {
+        userId: mgr.userId,
+        scopeType: 'PROPERTY',
+        scopeId: 'some-other-property',
+        role: 'PROPERTY_MANAGER',
+      },
     });
 
     await request(app.getHttpServer())
       .post(`/api/v1/chains/${chain.id}/properties`)
-      .set('x-test-user-id', 'mgr-1')
+      .set('Authorization', `Bearer ${mgr.token}`)
       .send({ name: 'New Branch', type: 'STANDALONE_RESTAURANT' })
       .expect(403);
 
+    const owner = await createAuthedUser('owner-1@example.com');
     await prisma.userAccess.create({
-      data: { userId: 'owner-1', scopeType: 'CHAIN', scopeId: chain.id, role: 'CHAIN_OWNER' },
+      data: { userId: owner.userId, scopeType: 'CHAIN', scopeId: chain.id, role: 'CHAIN_OWNER' },
     });
 
     await request(app.getHttpServer())
       .post(`/api/v1/chains/${chain.id}/properties`)
-      .set('x-test-user-id', 'owner-1')
+      .set('Authorization', `Bearer ${owner.token}`)
       .send({ name: 'New Branch', type: 'STANDALONE_RESTAURANT' })
       .expect(201);
   });
@@ -115,13 +135,14 @@ describe('Tenancy (FR-00) e2e', () => {
     const outlet = await prisma.outlet.create({
       data: { propertyId: property.id, chainId: chain.id, name: 'Main Restaurant', type: 'RESTAURANT' },
     });
+    const { userId, token } = await createAuthedUser('owner-1@example.com');
     await prisma.userAccess.create({
-      data: { userId: 'owner-1', scopeType: 'CHAIN', scopeId: chain.id, role: 'CHAIN_OWNER' },
+      data: { userId, scopeType: 'CHAIN', scopeId: chain.id, role: 'CHAIN_OWNER' },
     });
 
     await request(app.getHttpServer())
       .patch(`/api/v1/properties/${property.id}`)
-      .set('x-test-user-id', 'owner-1')
+      .set('Authorization', `Bearer ${token}`)
       .send({ isActive: false })
       .expect(200);
 
@@ -130,14 +151,17 @@ describe('Tenancy (FR-00) e2e', () => {
     expect(reloadedOutlet?.isActive).toBe(false);
   });
 
-  it('returns 403 for a request with no user context at all', async () => {
+  it('returns 401 for a request with no bearer token at all', async () => {
     const chain = await prisma.chain.create({ data: { name: 'Al Waha Group' } });
     const property = await prisma.property.create({
       data: { chainId: chain.id, name: 'Jeddah Hotel', type: 'HOTEL' },
     });
 
+    // Now that JwtAuthGuard is global, a missing token never reaches
+    // ScopeResolutionGuard's "no access" check — it's rejected at the auth
+    // layer (401), distinct from an authenticated-but-unauthorized 403.
     await request(app.getHttpServer())
       .get(`/api/v1/properties/${property.id}`)
-      .expect(403);
+      .expect(401);
   });
 });
