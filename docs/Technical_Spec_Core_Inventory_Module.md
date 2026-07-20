@@ -1,0 +1,1260 @@
+# Technical Specification — Core Inventory Module
+## Implementation-Ready Spec for Development (Human or AI Coding Agent)
+
+**Companion to:** SDLC_Document_AI_Inventory_App.md (Section 5.1, FR-01 to FR-12)
+**Stack assumed:** Node.js (NestJS) + TypeScript + SQL Server (via Prisma ORM, Repository Pattern — see SDLC doc §6.2 for the database portability strategy, since PostgreSQL/MySQL remain drop-in alternatives under this architecture) + React/React Native frontend
+**Purpose:** Each Functional Requirement below is broken into a data model, REST API contract, validation rules, business logic, and acceptance criteria — enough to implement directly without further clarification.
+
+**Conventions used throughout:**
+- All endpoints are prefixed `/api/v1`
+- All endpoints require `Authorization: Bearer <JWT>` unless stated otherwise
+- All list endpoints support `?page=&limit=&sort=` query params
+- All monetary fields are `Decimal(12,2)`; all quantity fields are `Decimal(10,3)` (to support fractional units like 0.5 kg)
+- Standard error response shape:
+```json
+{ "statusCode": 400, "error": "Bad Request", "message": "min_stock must be less than max_stock", "field": "min_stock" }
+```
+
+**SQL Server schema compatibility notes (read before implementing any model below):** Prisma's SQL Server connector has a few gaps versus PostgreSQL that shape how a couple of fields in this spec are modeled:
+- **No native scalar array type.** Any field that would naturally be a list (e.g., backup codes) is modeled as its own related table with one row per item, not a `String[]` field — this is actually the better long-term design anyway (each item individually queryable/updatable), so it's called out explicitly wherever it applies (see FR-13's `TwoFactorBackupCode` model).
+- **No native `Json` column type.** Fields holding structured/variable-shape data (e.g., `ActivityLog.metadata`) are modeled as `String` (mapped to `NVARCHAR(MAX)`), with the application layer doing `JSON.stringify`/`JSON.parse` at the repository boundary rather than relying on Prisma's `Json` filtering. This is called out explicitly where it applies (see FR-18).
+- **Enums are supported**, but Prisma implements them as validated string columns rather than a native SQL Server enum type (SQL Server has none) — no schema change needed, just noting that enum values are enforced at the Prisma Client layer rather than by the database engine itself, so any raw/manual data manipulation must still respect the allowed values.
+
+---
+
+## FR-00: Multi-Tenant Organizational Hierarchy (Chain → Property → Outlet)
+
+This is foundational — every other module in this document scopes its data through this hierarchy, so it must be built first.
+
+### Concept
+- **Chain** — the top-level tenant. The customer account itself (e.g., "Al Waha Hospitality Group"). Owns billing/subscription.
+- **Property** — a physical site belonging to a chain (e.g., "Al Waha Jeddah Hotel", or for a standalone restaurant business, the restaurant's single site). A chain can have one or many properties.
+- **Outlet** — an operational unit within a property where inventory is actually tracked (e.g., "Main Restaurant", "Pool Bar", "Room Service Kitchen", "Banquet Kitchen"). A property can have one or many outlets. **This is the same `Outlet` entity used throughout FR-01 to FR-12** — no change to those models' `outletId` fields, this section just adds the layers above it.
+
+A standalone restaurant with no hotel and no other branches still fits the model as `Chain(1) → Property(1) → Outlet(1)` — the hierarchy doesn't force complexity on small single-site customers, it just also scales up cleanly for chains.
+
+### Data Model
+```prisma
+model Chain {
+  id            String   @id @default(uuid())
+  name          String
+  baseCurrency  String   @default("SAR")   // group-level default; properties/outlets may override
+  subscriptionPlan String @default("STANDARD")
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  properties    Property[]
+}
+
+model Property {
+  id           String   @id @default(uuid())
+  chainId      String
+  chain        Chain    @relation(fields: [chainId], references: [id])
+  name         String
+  type         PropertyType   // HOTEL | STANDALONE_RESTAURANT | RESTAURANT_GROUP_SITE
+  address      String?
+  timezone     String   @default("Asia/Riyadh")
+  isActive     Boolean  @default(true)
+  outlets      Outlet[]
+
+  @@index([chainId])
+}
+
+model Outlet {
+  id           String   @id @default(uuid())
+  propertyId   String
+  property     Property @relation(fields: [propertyId], references: [id])
+  chainId      String   // denormalized from property.chainId for fast scoped queries — see note below
+  name         String   // e.g. "Main Restaurant", "Pool Bar", "Room Service Kitchen"
+  type         OutletType   // RESTAURANT | BAR | KITCHEN | STORE | ROOM_SERVICE
+  baseCurrency String   @default("SAR")   // inherited from property/chain by default, overridable per outlet
+  poApprovalThreshold Decimal @db.Decimal(12,2)?
+  isActive     Boolean  @default(true)
+
+  @@index([propertyId])
+  @@index([chainId])
+}
+```
+
+**Denormalization note:** `Outlet.chainId` duplicates what's derivable via `outlet.property.chainId`, but every single tenant-scoped table in this document (Item, StockTransaction, Supplier, PurchaseOrder, MenuItem, Alert, StockTransfer, etc.) filters by `outletId` on the hot path. Rather than adding a 2-hop join to every one of those queries just to check chain/property scope, resolve the user's **effective outlet ID list** once at request-auth time (see RBAC below) and continue filtering by `outletId` everywhere else unchanged. This keeps FR-01–FR-12 as written, with no schema changes needed to those modules beyond what tax/currency already added.
+
+### Access Control Across the Hierarchy (extends FR-11)
+
+Replace the flat `User.outletIds` array from FR-11/FR-13 with a scope-based access table, since a user might be granted access at any level of the hierarchy:
+
+```prisma
+enum ScopeType { CHAIN, PROPERTY, OUTLET }
+
+model UserAccess {
+  id        String    @id @default(uuid())
+  userId    String
+  scopeType ScopeType
+  scopeId   String     // a chainId, propertyId, or outletId, depending on scopeType
+  role      Role       // role is granted per-scope, so the same user could be PROPERTY_MANAGER at one property and OUTLET_STAFF at another
+  createdAt DateTime   @default(now())
+
+  @@unique([userId, scopeType, scopeId])
+}
+
+enum Role {
+  CHAIN_OWNER        // full access across every property/outlet in the chain; only role that can manage billing/chain settings
+  PROPERTY_MANAGER    // full access across every outlet within their assigned property(ies) — supersedes the old plain "MANAGER"
+  OUTLET_MANAGER       // full access within their assigned outlet(s) only (was "MANAGER" in earlier FR-04/FR-11 drafts)
+  STORE_STAFF
+  CHEF
+}
+```
+
+**Resolving effective outlet access (runs once per request, in the auth guard):**
+1. Load all `UserAccess` rows for `req.user.id`.
+2. For each `CHAIN` scope row → include every `Outlet` under every `Property` of that chain.
+3. For each `PROPERTY` scope row → include every `Outlet` under that property.
+4. For each `OUTLET` scope row → include that outlet directly.
+5. Union the results into `req.effectiveOutletIds: string[]` and `req.effectiveRole` (highest-privilege role among matching scopes, if a user somehow has multiple grants touching the same resource).
+6. Every existing FR-01–FR-12 endpoint's `outletId` filter/ownership check now validates against `req.effectiveOutletIds` instead of a flat array — this is the **only** change required in those modules' authorization logic.
+
+Cache the resolved `effectiveOutletIds` per request (not per login session) so role/scope changes (FR-14) take effect on the next request without requiring logout — consistent with the token-refresh-latency note already in FR-14.
+
+### API Endpoints
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/chains` | Create a chain (internal/admin-provisioning use, e.g. during customer onboarding) |
+| `GET` | `/chains/:id` | Chain detail incl. property count, outlet count |
+| `PATCH` | `/chains/:id` | Update chain settings (CHAIN_OWNER only) |
+| `POST` | `/chains/:id/properties` | Add a property to a chain |
+| `GET` | `/properties/:id` | Property detail incl. its outlets |
+| `PATCH` | `/properties/:id` | Update property |
+| `POST` | `/properties/:id/outlets` | Add an outlet to a property |
+| `GET` | `/outlets/:id` | Outlet detail |
+| `PATCH` | `/outlets/:id` | Update outlet settings |
+| `GET` | `/chains/:id/hierarchy` | Full nested tree: chain → properties → outlets (for building nav/switcher UI) |
+
+### Business Logic
+- Only `CHAIN_OWNER` can create/edit properties and chain-level settings; `PROPERTY_MANAGER` can edit outlets within their own property but not create new properties.
+- Deleting/deactivating a `Property` or `Chain` cascades a soft-deactivation to all child outlets (never a hard delete — historical transactional data must remain queryable).
+- **Property/Outlet switcher UI:** since a user may have access to multiple properties or outlets (e.g., a CHAIN_OWNER, or a STORE_STAFF who covers two outlets), the frontend needs a persistent context switcher (typically in the top nav) showing "currently viewing: [Outlet name] — [Property name]"; this selection is client-side state, not server session state, since a user's effective access list can span many outlets simultaneously.
+
+### Acceptance Criteria
+- [ ] A CHAIN_OWNER can view/manage data across every property and outlet in their chain without explicit per-outlet grants
+- [ ] A PROPERTY_MANAGER cannot access outlets belonging to a different property, even within the same chain
+- [ ] Granting a user OUTLET-scoped access to a single outlet does not expose sibling outlets under the same property
+- [ ] `effectiveOutletIds` resolution correctly unions overlapping grants (e.g., a CHAIN grant plus an additional OUTLET grant elsewhere doesn't cause duplicate or missing outlets)
+- [ ] Deactivating a Property deactivates all its Outlets but preserves their historical data
+
+---
+
+## FR-01: Item Master Management
+
+### Data Model (Prisma schema)
+```prisma
+model Item {
+  id              String   @id @default(uuid())
+  outletId        String
+  outlet          Outlet   @relation(fields: [outletId], references: [id])
+  name            String
+  categoryId      String
+  category        Category @relation(fields: [categoryId], references: [id])
+  sku             String   @unique
+  barcode         String?  @unique
+  unit            Unit     // enum: KG, LITRE, PIECE, BOX, GRAM, ML
+  minStock        Decimal  @db.Decimal(10,3)
+  maxStock        Decimal  @db.Decimal(10,3)
+  currentStock    Decimal  @db.Decimal(10,3) @default(0)  // denormalized, updated via StockTransaction
+  shelfLifeDays   Int?
+  costPrice       Decimal  @db.Decimal(12,2)
+  defaultSupplierId String?
+  storageLocation String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([outletId, isActive])
+  @@index([categoryId])
+}
+
+model Category {
+  id       String @id @default(uuid())
+  name     String
+  outletId String
+  @@unique([name, outletId])
+}
+```
+
+### API Endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/items` | Create item |
+| `GET` | `/items` | List items (filters: `categoryId`, `isActive`, `search`, `belowMinStock=true`) |
+| `GET` | `/items/:id` | Get item detail |
+| `PATCH` | `/items/:id` | Update item |
+| `DELETE` | `/items/:id` | Soft-delete (sets `isActive=false`) |
+| `POST` | `/items/bulk-import` | CSV/Excel bulk import (multipart file upload) |
+| `GET` | `/items/categories` | List categories |
+| `POST` | `/items/categories` | Create category |
+
+**POST /items — Request:**
+```json
+{
+  "name": "Basmati Rice",
+  "categoryId": "uuid",
+  "sku": "RICE-BAS-001",
+  "barcode": "8901030123456",
+  "unit": "KG",
+  "minStock": 10,
+  "maxStock": 100,
+  "shelfLifeDays": 365,
+  "costPrice": 85.50,
+  "defaultSupplierId": "uuid",
+  "storageLocation": "Dry Store"
+}
+```
+**Response 201:** full Item object including generated `id`, `currentStock: 0`.
+
+### Validation Rules
+- `name`: required, 2–120 chars
+- `sku`: required, unique per tenant, alphanumeric + hyphens
+- `minStock < maxStock` → else `400`
+- `unit`: must be a valid enum value
+- `costPrice >= 0`
+- Duplicate `barcode` within same outlet → `409 Conflict`
+
+### Business Logic
+- On soft-delete (`DELETE /items/:id`): check for any `PurchaseOrder` with status not in `[Closed, Cancelled, Rejected]` referencing this item → if found, return `409` with message "Cannot deactivate item with open purchase orders."
+- `currentStock` is **never** written directly via this endpoint — it is only ever mutated by the Stock Transaction service (FR-02) to preserve the single-source-of-truth invariant.
+- Bulk import: validate every row before committing any; return a per-row error report (`{row: 5, error: "duplicate SKU"}`) rather than partial success.
+
+### Acceptance Criteria
+- [ ] Cannot create two items with the same SKU in the same outlet
+- [ ] Cannot set `minStock >= maxStock`
+- [ ] Deactivating an item with an open PO returns 409, not silent failure
+- [ ] `GET /items?belowMinStock=true` returns only items where `currentStock < minStock`
+
+---
+
+## FR-02: Stock-In / Stock-Out Transactions
+
+### Data Model
+```prisma
+enum TransactionType {
+  PURCHASE_IN
+  OPENING_BALANCE
+  TRANSFER_IN
+  ADJUSTMENT_IN
+  USAGE_OUT
+  WASTAGE_OUT
+  TRANSFER_OUT
+  ADJUSTMENT_OUT
+}
+
+model StockTransaction {
+  id            String   @id @default(uuid())
+  outletId      String
+  itemId        String
+  item          Item     @relation(fields: [itemId], references: [id])
+  type          TransactionType
+  quantity      Decimal  @db.Decimal(10,3)   // always positive; direction implied by type
+  balanceAfter  Decimal  @db.Decimal(10,3)   // running balance snapshot, immutable
+  referenceType String?  // 'PO' | 'GRN' | 'TRANSFER' | 'MANUAL'
+  referenceId   String?
+  reasonCode    String?  // required for WASTAGE_OUT: 'EXPIRED'|'DAMAGED'|'SPILLED'|'OVER_PREPARED'
+  photoUrl      String?
+  performedById String
+  createdAt     DateTime @default(now())
+
+  @@index([itemId, createdAt])
+  @@index([outletId, type])
+}
+```
+
+### API Endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/stock-transactions` | Create a stock movement |
+| `GET` | `/stock-transactions` | List/filter transactions (`itemId`, `type`, `dateFrom`, `dateTo`) |
+| `GET` | `/stock-transactions/:id` | Get single transaction |
+| `POST` | `/stock-transactions/:id/photo` | Attach wastage photo (multipart) |
+
+**POST /stock-transactions — Request:**
+```json
+{
+  "itemId": "uuid",
+  "type": "WASTAGE_OUT",
+  "quantity": 2.5,
+  "reasonCode": "EXPIRED",
+  "referenceType": "MANUAL"
+}
+```
+**Response 201:** transaction object with `balanceAfter` computed server-side.
+
+### Validation Rules
+- `quantity > 0` always (direction comes from `type`, never a negative number)
+- `reasonCode` required if `type == WASTAGE_OUT`, else must be null
+- For any `*_OUT` type: reject if `item.currentStock - quantity < 0`, **unless** requester has `role IN [OUTLET_MANAGER, PROPERTY_MANAGER, CHAIN_OWNER]` and passes `"forceOverride": true` in the body — in which case log an additional `AuditLog` entry with severity `HIGH`
+
+### Business Logic (critical — must run inside a DB transaction)
+1. Lock the `Item` row (`SELECT ... FOR UPDATE`) to prevent race conditions on concurrent stock updates.
+2. Compute `balanceAfter = currentStock ± quantity` depending on type direction.
+3. Insert the `StockTransaction` row (immutable — no `UPDATE`/`DELETE` endpoint ever exposed for this table).
+4. Update `Item.currentStock = balanceAfter`.
+5. If `balanceAfter < item.minStock`, enqueue a low-stock alert job (see FR-07).
+6. Commit. If any step fails, roll back entirely.
+
+### Acceptance Criteria
+- [ ] Two concurrent stock-out requests for the same item never result in an incorrect negative balance (test with parallel requests)
+- [ ] `WASTAGE_OUT` without `reasonCode` returns `400`
+- [ ] Transactions are never editable or deletable via API — corrections only via a new adjustment transaction
+- [ ] `balanceAfter` on each row matches a recomputed running sum from full history (data-integrity test)
+
+---
+
+## FR-03: Supplier Management
+
+### Data Model
+```prisma
+model Supplier {
+  id            String   @id @default(uuid())
+  outletId      String
+  name          String
+  contactPerson String?
+  phone         String?
+  email         String?
+  address       String?
+  paymentTerms  String?   // e.g. "NET_15", "NET_30", "COD"
+  leadTimeDays  Int?
+  isActive      Boolean  @default(true)
+}
+
+model SupplierPriceHistory {
+  id         String   @id @default(uuid())
+  supplierId String
+  itemId     String
+  price      Decimal  @db.Decimal(12,2)
+  recordedAt DateTime @default(now())
+  source     String   // 'PO' | 'GRN' | 'MANUAL'
+
+  @@index([supplierId, itemId, recordedAt])
+}
+```
+
+### API Endpoints
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/suppliers` | Create supplier |
+| `GET` | `/suppliers` | List suppliers |
+| `GET` | `/suppliers/:id` | Detail incl. performance summary |
+| `PATCH` | `/suppliers/:id` | Update |
+| `DELETE` | `/suppliers/:id` | Soft delete |
+| `GET` | `/suppliers/:id/price-history?itemId=` | Price trend for an item |
+| `GET` | `/suppliers/:id/performance` | On-time %, price consistency score |
+
+### Business Logic
+- `SupplierPriceHistory` rows are auto-created (never manually) whenever a GRN (FR-04) is finalized — this is the data source for AI-09 (Supplier Price Intelligence).
+- Performance score formula (documented for whoever builds AI-09, but computed here as a simple baseline):
+  `onTimeRate = COUNT(GRNs received on/before PO expectedDeliveryDate) / COUNT(total GRNs)`
+- `DELETE /suppliers/:id` → `409` if any `PurchaseOrder.status NOT IN [Closed, Cancelled, Rejected]` references it.
+
+### Acceptance Criteria
+- [ ] Price history entry is created automatically on GRN finalization, never manually editable
+- [ ] Deleting a supplier with an open PO returns 409
+
+---
+
+## FR-04: Purchase Order & Approval Workflow
+
+### Data Model
+```prisma
+enum POStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT_TO_SUPPLIER
+  PARTIALLY_RECEIVED
+  FULLY_RECEIVED
+  CLOSED
+  REJECTED
+  CANCELLED
+}
+
+model PurchaseOrder {
+  id                  String   @id @default(uuid())
+  outletId            String
+  supplierId          String
+  status              POStatus @default(DRAFT)
+  expectedDeliveryDate DateTime?
+  createdById         String
+  approvedById        String?
+  approvedAt          DateTime?
+  currencyCode        String   @default("SAR")   // ISO 4217, e.g. SAR, AED, USD, INR
+  exchangeRateToBase  Decimal  @db.Decimal(12,6) @default(1)  // rate at time of PO creation, vs outlet's base currency
+  subtotal            Decimal  @db.Decimal(12,2)  // sum of line amounts before tax
+  taxAmount           Decimal  @db.Decimal(12,2)  // sum of line tax amounts
+  totalValue          Decimal  @db.Decimal(12,2)  // subtotal + taxAmount, in currencyCode
+  lines               POLine[]
+  createdAt           DateTime @default(now())
+}
+
+model POLine {
+  id                String  @id @default(uuid())
+  purchaseOrderId   String
+  itemId            String
+  orderedQty        Decimal @db.Decimal(10,3)
+  expectedPrice     Decimal @db.Decimal(12,2)   // unit price, excl. tax, in PO currency
+  taxRateId         String?
+  taxRate           Decimal @db.Decimal(5,2) @default(0)   // percentage, e.g. 15.00 for 15% VAT — snapshotted at line creation
+  lineSubtotal      Decimal @db.Decimal(12,2)   // orderedQty * expectedPrice
+  lineTaxAmount     Decimal @db.Decimal(12,2)   // lineSubtotal * taxRate / 100
+  lineTotal         Decimal @db.Decimal(12,2)   // lineSubtotal + lineTaxAmount
+  receivedQty       Decimal @db.Decimal(10,3) @default(0)
+}
+
+model GRN {
+  id              String   @id @default(uuid())
+  purchaseOrderId String
+  receivedById    String
+  receivedAt      DateTime @default(now())
+  currencyCode    String   // inherited from PO, editable only if supplier invoiced in a different currency
+  exchangeRateToBase Decimal @db.Decimal(12,6)
+  subtotal        Decimal  @db.Decimal(12,2)
+  taxAmount       Decimal  @db.Decimal(12,2)
+  totalValue      Decimal  @db.Decimal(12,2)
+  lines           GRNLine[]
+  varianceFlagged Boolean  @default(false)
+}
+
+model GRNLine {
+  id            String  @id @default(uuid())
+  grnId         String
+  itemId        String
+  orderedQty    Decimal @db.Decimal(10,3)
+  receivedQty   Decimal @db.Decimal(10,3)
+  actualPrice   Decimal @db.Decimal(12,2)   // unit price, excl. tax, as per supplier invoice
+  taxRateId     String?
+  taxRate       Decimal @db.Decimal(5,2) @default(0)
+  lineSubtotal  Decimal @db.Decimal(12,2)
+  lineTaxAmount Decimal @db.Decimal(12,2)
+  lineTotal     Decimal @db.Decimal(12,2)
+}
+
+model TaxRate {
+  id          String   @id @default(uuid())
+  outletId    String
+  name        String    // e.g. "VAT 15%", "Zero-Rated", "GST 5%"
+  ratePercent Decimal   @db.Decimal(5,2)
+  isDefault   Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  countryCode String?   // e.g. "SA", "AE", "IN" — for default suggestion by outlet locale
+}
+
+model Currency {
+  code          String   @id   // ISO 4217, e.g. "SAR", "AED", "USD"
+  name          String
+  symbol        String
+  decimalPlaces Int      @default(2)
+}
+
+model ExchangeRate {
+  id            String   @id @default(uuid())
+  baseCurrency  String
+  targetCurrency String
+  rate          Decimal  @db.Decimal(12,6)
+  effectiveDate DateTime @default(now())
+  source        String   // 'MANUAL' | 'API' (e.g. synced from an FX rate provider)
+
+  @@index([baseCurrency, targetCurrency, effectiveDate])
+}
+```
+
+### API Endpoints
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/purchase-orders` | Create PO (status=DRAFT) |
+| `PATCH` | `/purchase-orders/:id/submit` | DRAFT → PENDING_APPROVAL |
+| `PATCH` | `/purchase-orders/:id/approve` | → APPROVED (role: OUTLET_MANAGER/PROPERTY_MANAGER/CHAIN_OWNER only) |
+| `PATCH` | `/purchase-orders/:id/reject` | → REJECTED, requires `reason` |
+| `PATCH` | `/purchase-orders/:id/send` | → SENT_TO_SUPPLIER |
+| `POST` | `/purchase-orders/:id/grn` | Create GRN against this PO (full or partial) |
+| `GET` | `/purchase-orders` | List, filter by `status`, `supplierId`, `dateRange` |
+| `GET` | `/purchase-orders/:id` | Detail incl. GRN history |
+
+**POST /purchase-orders — Request:**
+```json
+{
+  "supplierId": "uuid",
+  "currencyCode": "SAR",
+  "expectedDeliveryDate": "2026-08-01",
+  "lines": [
+    { "itemId": "uuid", "orderedQty": 20, "expectedPrice": 87.00, "taxRateId": "uuid-vat-15" }
+  ]
+}
+```
+Server computes and returns: `lineSubtotal`, `lineTaxAmount`, `lineTotal` per line, and PO-level `subtotal`, `taxAmount`, `totalValue`. If `currencyCode` differs from the outlet's base currency, `exchangeRateToBase` is fetched from the latest `ExchangeRate` row and snapshotted onto the PO (not recalculated later, so historical POs remain accurate even if rates move).
+
+**POST /purchase-orders/:id/grn — Request:**
+```json
+{
+  "currencyCode": "SAR",
+  "lines": [
+    { "itemId": "uuid", "orderedQty": 20, "receivedQty": 18, "actualPrice": 87.00, "taxRateId": "uuid-vat-15" }
+  ]
+}
+```
+
+### Additional Endpoints — Tax & Currency
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/tax-rates` | List configured tax rates for the outlet |
+| `POST` | `/tax-rates` | Create a tax rate (role: PROPERTY_MANAGER/CHAIN_OWNER) |
+| `GET` | `/currencies` | List supported currencies |
+| `GET` | `/exchange-rates?base=&target=` | Latest exchange rate |
+| `POST` | `/exchange-rates` | Manually record/update a rate (or synced nightly from an FX API — see Business Logic) |
+
+### Business Logic
+- **Approval threshold:** configurable per outlet (`Outlet.poApprovalThreshold`); if `totalValue > threshold`, only `PROPERTY_MANAGER`-or-higher (i.e. `PROPERTY_MANAGER` or `CHAIN_OWNER`) can call `/approve` — a plain `OUTLET_MANAGER` cannot. **Note:** threshold comparison always converts `totalValue` to the outlet's base currency using the PO's snapshotted `exchangeRateToBase`, so thresholds stay consistent regardless of which currency a supplier bills in.
+- **Tax calculation (server-side, never trusted from client):**
+  1. For each line: `lineSubtotal = orderedQty * expectedPrice`; look up `taxRateId` → `ratePercent`; `lineTaxAmount = round(lineSubtotal * ratePercent / 100, 2)`; `lineTotal = lineSubtotal + lineTaxAmount`.
+  2. PO/GRN-level `subtotal = SUM(lineSubtotal)`, `taxAmount = SUM(lineTaxAmount)`, `totalValue = subtotal + taxAmount`.
+  3. If a line omits `taxRateId`, apply the outlet's `TaxRate` marked `isDefault: true`.
+  4. Reject with `400` if `taxRateId` references an inactive or non-existent tax rate.
+- **On GRN creation:**
+  1. For each line, validate `receivedQty <= (orderedQty - alreadyReceivedQty)`.
+  2. If `abs(receivedQty - orderedQty) / orderedQty > toleranceConfig` (default 10%) → set `varianceFlagged = true` and require `OUTLET_MANAGER`-or-higher approval before proceeding (`403` for `STORE_STAFF` role attempting to finalize a variance GRN).
+  3. Create a `StockTransaction` (`type: PURCHASE_IN`) per line via the FR-02 service — never write to `Item.currentStock` directly here. Stock quantity is unaffected by currency/tax — only the value fields are.
+  4. Create a `SupplierPriceHistory` row per line (`source: 'GRN'`), storing `actualPrice` in the GRN's currency plus its base-currency equivalent (`actualPrice * exchangeRateToBase`) so cross-supplier price comparisons (AI-09) remain valid even when suppliers invoice in different currencies.
+  5. Update `POLine.receivedQty`. Recompute PO status: all lines fully received → `FULLY_RECEIVED`; some received → `PARTIALLY_RECEIVED`.
+- PO can be manually moved to `CLOSED` from `PARTIALLY_RECEIVED` (accepting short delivery as final) by OUTLET_MANAGER, PROPERTY_MANAGER, or CHAIN_OWNER.
+- **Exchange rate sourcing:** for MVP, rates are entered manually by PROPERTY_MANAGER/CHAIN_OWNER (simple table, updated as needed). Phase 2+ can sync nightly from an FX rate API (e.g., exchangerate.host) into the `ExchangeRate` table via a scheduled job — the PO/GRN creation logic doesn't change either way, it just reads the latest row.
+
+### Acceptance Criteria (Tax & Currency additions)
+- [ ] Tax amounts are always computed server-side from `taxRateId`, never accepted as a raw number from the client
+- [ ] A PO raised in a foreign currency snapshots its exchange rate at creation time; later changes to `ExchangeRate` do not retroactively alter historical PO values
+- [ ] Approval-threshold comparisons correctly convert to base currency before comparing
+- [ ] Supplier price history remains comparable across suppliers billing in different currencies
+
+### Acceptance Criteria
+- [ ] A `STORE_STAFF` cannot approve a PO regardless of value
+- [ ] GRN receipt beyond the ordered quantity is rejected at the API level
+- [ ] Variance beyond tolerance blocks finalization until an OUTLET_MANAGER-or-higher confirms
+- [ ] Every finalized GRN line results in exactly one `StockTransaction` and one `SupplierPriceHistory` row
+
+---
+
+## FR-05: Recipe / BOM Mapping
+
+### Data Model
+```prisma
+model MenuItem {
+  id        String   @id @default(uuid())
+  outletId  String
+  name      String
+  isActive  Boolean  @default(false) // cannot activate without a recipe (see business logic)
+  recipes   Recipe[]
+}
+
+model Recipe {
+  id           String   @id @default(uuid())
+  menuItemId   String
+  version      Int      @default(1)
+  isCurrent    Boolean  @default(true)
+  lines        RecipeLine[]
+  createdAt    DateTime @default(now())
+}
+
+model RecipeLine {
+  id           String  @id @default(uuid())
+  recipeId     String
+  itemId       String?       // raw material item
+  subRecipeId  String?       // OR a sub-recipe (mutually exclusive with itemId)
+  quantity     Decimal @db.Decimal(10,4)
+}
+```
+
+### API Endpoints
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/menu-items` | Create menu item |
+| `POST` | `/menu-items/:id/recipes` | Create/replace recipe (auto-versions) |
+| `GET` | `/menu-items/:id/recipes/current` | Active recipe |
+| `GET` | `/menu-items/:id/recipes/history` | All versions |
+| `PATCH` | `/menu-items/:id/activate` | Mark sellable (validates recipe exists) |
+| `GET` | `/menu-items/:id/cost` | Computed recipe cost from current ingredient prices |
+
+### Business Logic
+- Creating a new recipe for a menu item sets the previous one `isCurrent=false` and increments `version` — **never overwrite** an existing recipe row (past sales must remain costed against the version active at time of sale; the `Sale` record stores `recipeVersionUsed`).
+- Each `RecipeLine` must have exactly one of `itemId` or `subRecipeId` set (`400` if both or neither).
+- Recursive sub-recipe resolution: cost/consumption calculation must detect and reject circular sub-recipe references (`A contains B contains A`) at save time.
+- `PATCH /menu-items/:id/activate` → `409` if no recipe exists.
+
+### Acceptance Criteria
+- [ ] Editing a recipe creates a new version; old version remains queryable
+- [ ] Circular sub-recipe reference is rejected with a clear error, not an infinite loop
+- [ ] Cannot activate a menu item with zero recipe lines
+
+---
+
+## FR-06: Auto Stock Deduction on POS Sale
+
+### Data Model
+```prisma
+model Sale {
+  id               String   @id @default(uuid())
+  outletId         String
+  menuItemId       String
+  quantitySold     Decimal  @db.Decimal(10,3)
+  recipeVersionUsed Int
+  posReferenceId   String   @unique   // idempotency key from POS system
+  isVoid           Boolean  @default(false)
+  saleTimestamp    DateTime
+  createdAt        DateTime @default(now())
+}
+```
+
+### API Endpoints
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/pos-webhook/sale` | Inbound webhook from POS on each sale (HMAC-signed) |
+| `POST` | `/pos-webhook/void` | Inbound webhook on sale void/refund |
+| `POST` | `/sales/manual` | Manual entry fallback (no POS integration for outlet) |
+| `GET` | `/sales` | List/filter sales |
+
+**POST /pos-webhook/sale — Request:**
+```json
+{
+  "posReferenceId": "pos-txn-88213",
+  "menuItemId": "uuid",
+  "quantitySold": 2,
+  "timestamp": "2026-07-20T12:34:00Z"
+}
+```
+
+### Business Logic
+1. **Idempotency:** if `posReferenceId` already exists, return `200` without reprocessing (POS webhooks may retry).
+2. Look up `MenuItem.recipes` current version. If none exists → log a `RecipeMissingWarning` event (surfaces in an admin "unmapped items" queue) and skip stock deduction — **do not fail the webhook** (POS must not see errors for a data-mapping gap).
+3. If recipe exists: for each `RecipeLine`, create a `StockTransaction` (`type: USAGE_OUT`, `quantity: recipeLine.quantity * quantitySold`, `referenceType: 'SALE'`, `referenceId: sale.id`) via the FR-02 service. If a line references a sub-recipe, resolve recursively.
+4. On `/pos-webhook/void`: locate original `Sale` by `posReferenceId`, mark `isVoid=true`, and create reversing `StockTransaction`s (`type: ADJUSTMENT_IN`) for each ingredient.
+
+### Acceptance Criteria
+- [ ] Replaying the same webhook payload twice does not double-deduct stock
+- [ ] A sale for a menu item with no recipe does not throw a 5xx — it succeeds and logs a mapping warning
+- [ ] Voiding a sale correctly reverses all ingredient deductions, including sub-recipe items
+
+---
+
+## FR-07: Low-Stock & Expiry Alerts
+
+### Data Model
+```prisma
+enum AlertType { LOW_STOCK, OUT_OF_STOCK, EXPIRY_WARNING }
+enum AlertStatus { OPEN, ACKNOWLEDGED, RESOLVED }
+
+model Alert {
+  id          String   @id @default(uuid())
+  outletId    String
+  itemId      String?
+  type        AlertType
+  status      AlertStatus @default(OPEN)
+  message     String
+  createdAt   DateTime @default(now())
+  resolvedAt  DateTime?
+
+  @@index([outletId, status])
+}
+```
+
+### API Endpoints
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/alerts` | List (`status`, `type`, `outletId`) |
+| `PATCH` | `/alerts/:id/acknowledge` | Mark acknowledged |
+| `PATCH` | `/alerts/:id/resolve` | Mark resolved |
+| `POST` | `/alerts/:id/create-po-draft` | Shortcut: creates a DRAFT PO pre-filled with this item |
+
+### Business Logic
+- Alert generation runs as an **async job** triggered by the FR-02 transaction service (not synchronously in the request path) — publish an event (`item.stock.changed`) to a queue (e.g., BullMQ/Redis) consumed by an `AlertsProcessor`.
+- **Dedup rule:** before creating a new `LOW_STOCK` alert for an item, check for an existing `OPEN` alert of the same type for that item created within the last `alertCooldownHours` (default 24) — if found, skip.
+- Expiry check runs as a nightly scheduled job: for items with `shelfLifeDays` set, estimate expiry from last `PURCHASE_IN` transaction date + shelf life, and raise `EXPIRY_WARNING` if within `expiryAlertLeadDays` (default 3) of that date.
+- Delivery: on alert creation, dispatch to configured channels per `User.notificationPreferences` (push via FCM/APNs, SMS via Twilio, email digest batched hourly).
+
+### Acceptance Criteria
+- [ ] No duplicate OPEN alert for the same item+type within the cooldown window
+- [ ] Alert creation is decoupled from the stock-transaction request (doesn't slow down FR-02 API response time)
+- [ ] `create-po-draft` produces a DRAFT PO with the correct item and a suggested quantity (`maxStock - currentStock`)
+
+---
+
+## FR-08: Multi-Outlet Transfer & Consolidated Dashboard
+
+### Data Model
+```prisma
+enum TransferStatus { REQUESTED, IN_TRANSIT, RECEIVED, CANCELLED }
+
+model StockTransfer {
+  id              String   @id @default(uuid())
+  sourceOutletId  String
+  destOutletId    String
+  status          TransferStatus @default(REQUESTED)
+  requestedById   String
+  lines           TransferLine[]
+  dispatchedAt    DateTime?
+  receivedAt      DateTime?
+}
+
+model TransferLine {
+  id         String  @id @default(uuid())
+  transferId String
+  itemId     String
+  quantity   Decimal @db.Decimal(10,3)
+}
+```
+
+### API Endpoints
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/transfers` | Create transfer request (role: OUTLET_MANAGER/PROPERTY_MANAGER/CHAIN_OWNER only) |
+| `PATCH` | `/transfers/:id/dispatch` | → IN_TRANSIT, creates `TRANSFER_OUT` at source |
+| `PATCH` | `/transfers/:id/receive` | → RECEIVED, creates `TRANSFER_IN` at destination |
+| `GET` | `/dashboard/outlet/:outletId` | Single-outlet dashboard |
+| `GET` | `/dashboard/property/:propertyId` | Aggregated across all outlets in a property |
+| `GET` | `/dashboard/chain/:chainId` | Aggregated across all properties/outlets in a chain |
+
+### Business Logic
+- `POST /transfers` → `403` if requester's effective role for the source outlet is `STORE_STAFF` or `CHEF` (per FR-11). A transfer between outlets under different properties requires the requester to have at least `PROPERTY_MANAGER`-or-higher effective access covering **both** outlets (i.e., typically a `CHAIN_OWNER`, since a `PROPERTY_MANAGER` scoped to one property normally can't also reach an outlet in another property) — reject with `403` and a clear "insufficient access to destination outlet" message otherwise.
+- `dispatch`: creates `StockTransaction(type: TRANSFER_OUT)` at source outlet via FR-02 service (subject to same negative-stock guard).
+- `receive`: creates `StockTransaction(type: TRANSFER_IN)` at destination outlet. Quantity received can differ from dispatched (damage in transit) — capture `actualReceivedQty` per line and flag variance similarly to GRN.
+- `/dashboard/property/:id` and `/dashboard/chain/:id` aggregate via a read-optimized query (consider a materialized view or scheduled rollup table if outlet count/data volume grows, to avoid heavy real-time joins across many outlets); figures spanning outlets with different `baseCurrency` values are converted to the property's or chain's reporting currency per FR-16, clearly labeled as FX-converted.
+
+### Acceptance Criteria
+- [ ] STORE_STAFF and CHEF cannot create a transfer (403)
+- [ ] A transfer across properties is blocked unless the requester's access spans both outlets
+- [ ] Dispatching decrements source stock; receiving increments destination stock; these are two independent StockTransaction rows, both auditable
+- [ ] Property-level dashboard figures equal the sum of its outlets' figures; chain-level figures equal the sum of its properties' figures (reconciliation test at both levels)
+
+---
+
+## FR-09: Barcode / QR Scanning
+
+### API Endpoints
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/items/lookup-barcode/:code` | Resolve barcode → item (used by mobile scan flow) |
+| `POST` | `/items/:id/generate-qr` | Generate a printable internal QR code for items without a manufacturer barcode |
+
+### Business Logic
+- `GET /items/lookup-barcode/:code` → `404` if not found; mobile client then routes to "Create new item" pre-filled with the scanned code as `barcode`.
+- QR generation: encode `{"itemId": "...", "outletId": "..."}` as JSON payload inside the QR (not just the raw SKU) so scanning is unambiguous across outlets sharing similar SKUs.
+- Mobile scan integration is client-side (device camera + a barcode-reading library such as `react-native-vision-camera` + `ml-kit`/`zxing`); backend only needs the lookup/generate endpoints above.
+
+### Acceptance Criteria
+- [ ] Scanning a known barcode pre-fills the stock-transaction item field within the app (client-side, verified via lookup endpoint response time < 300ms)
+- [ ] Scanning an unknown barcode routes to item creation, not a dead-end error
+
+---
+
+## FR-10: Reporting Suite
+
+### API Endpoints
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/reports/stock-valuation` | `?outletId=&asOfDate=` |
+| `GET` | `/reports/consumption-trend` | `?itemId=&dateFrom=&dateTo=&groupBy=day\|week` |
+| `GET` | `/reports/wastage-log` | `?dateFrom=&dateTo=&reasonCode=` |
+| `GET` | `/reports/supplier-performance` | `?supplierId=` |
+| `GET` | `/reports/purchase-vs-consumption` | `?itemId=&dateFrom=&dateTo=` |
+| `GET` | `/reports/:reportType/export?format=pdf\|xlsx` | Export any of the above |
+| `POST` | `/reports/schedule` | Configure recurring email delivery |
+
+### Business Logic
+- All report queries should run against **read replicas** if available at scale, to avoid impacting transactional write performance.
+- For MVP scale (small hotels/restaurants), direct queries against the primary DB with appropriate indexes are acceptable; revisit read-replica routing only if latency degrades.
+- Export: generate PDF via a templating engine (e.g., Puppeteer/Playwright rendering an HTML template) and XLSX via a library like `exceljs`; both queued as async jobs with a "ready for download" notification for large exports (>1000 rows), synchronous for small ones.
+- Scheduled reports: stored as a `ReportSchedule` record (cron expression, recipient list, report type + filters), processed by a scheduler (e.g., NestJS `@Cron` or a dedicated worker).
+
+### Acceptance Criteria
+- [ ] Stock valuation report total matches `SUM(currentStock * costPrice)` recomputed independently (reconciliation test)
+- [ ] Export endpoints return a downloadable file link, not raw binary blocking the request
+- [ ] Scheduled report actually fires and delivers on the configured cadence in a staging test
+
+---
+
+## FR-11: Role-Based Access Control
+
+### Data Model
+Roles and access grants now live in `UserAccess` (see FR-00) rather than a flat field on `User`. This section documents enforcement, not the schema again.
+
+### Implementation Approach
+- Use NestJS **Guards** + a custom `@Roles(Role.PROPERTY_MANAGER, Role.CHAIN_OWNER)` decorator on controller methods — every endpoint in this document that mentions a role restriction should be enforced via this guard, checked against `req.effectiveRole` for the specific resource's outlet (resolved per FR-00), not ad-hoc `if` checks scattered in services.
+- Field-level restriction (e.g., hiding `costPrice` from `CHEF` role): implement via a response-serialization interceptor that strips restricted fields based on `request.effectiveRole` for the resource in question, rather than building separate DTOs per role (keeps it maintainable as fields grow). Note a user's role can differ per outlet/property, so this check must use the role effective *for that specific resource*, not a single global role on the user.
+- Every mutating endpoint must write an `AuditLog` entry: `{userId, action, entityType, entityId, outletId, before, after, timestamp}`.
+
+### Permission Matrix (authoritative reference for the guard config)
+
+| Action | CHAIN_OWNER | PROPERTY_MANAGER | OUTLET_MANAGER | STORE_STAFF | CHEF |
+|---|---|---|---|---|---|
+| View items | ✅ (all) | ✅ (own property) | ✅ (own outlet) | ✅ | ✅ (no cost price) |
+| Create/edit items | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Stock in/out entry | ✅ | ✅ | ✅ | ✅ | ✅ (usage/wastage only) |
+| Create PO | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Approve PO | ✅ | ✅ (below threshold) | ✅ (below threshold) | ❌ | ❌ |
+| Create transfer | ✅ (any outlets in chain) | ✅ (within own property) | ❌ | ❌ | ❌ |
+| View financial reports | ✅ (chain-wide) | ✅ (property-wide) | ✅ (own outlet) | ❌ | ❌ |
+| Manage properties/outlets | ✅ | ✅ (edit own property's outlets only) | ❌ | ❌ | ❌ |
+| Manage users/roles | ✅ (any scope) | ✅ (within own property only) | ❌ | ❌ | ❌ |
+| Set chain-wide 2FA policy | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+### Acceptance Criteria
+- [ ] Every endpoint listed with a role restriction in this document actually enforces it, resolved per-resource via `effectiveRole` (integration test matrix covering all 5 roles × key endpoints × at least one cross-property/cross-chain negative test)
+- [ ] `costPrice` and valuation fields never appear in API responses served to `CHEF` role
+- [ ] Every mutating call produces exactly one AuditLog row, including the `outletId` it applies to
+- [ ] A PROPERTY_MANAGER's elevated access does not leak into a sibling property under the same chain
+
+---
+
+## FR-12: Offline Mode with Sync-on-Reconnect
+
+### Client-Side Approach (mobile app)
+- Local embedded DB: **WatermelonDB** or **RxDB** (both designed for offline-first sync with a server) storing a cached copy of `Item` master data and a write-ahead queue of pending `StockTransaction` creations.
+- Each locally-created transaction gets a **client-generated UUID** and a `syncStatus: 'PENDING' | 'SYNCED' | 'CONFLICT'` flag, plus a `clientCreatedAt` timestamp (distinct from server `createdAt`) to preserve true ordering.
+
+### API Endpoint
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/stock-transactions/sync-batch` | Accepts an array of queued offline transactions, processes in `clientCreatedAt` order |
+
+**Request:**
+```json
+{
+  "transactions": [
+    { "clientId": "uuid-a", "itemId": "uuid", "type": "USAGE_OUT", "quantity": 1.5, "clientCreatedAt": "2026-07-20T09:00:00Z" }
+  ]
+}
+```
+**Response:** per-transaction result — `{"clientId": "uuid-a", "status": "SYNCED", "serverId": "..."}` or `{"clientId": "uuid-a", "status": "CONFLICT", "reason": "would result in negative stock", "currentServerStock": 3.0}`.
+
+### Business Logic
+- Process the batch sequentially per item (same row-locking approach as FR-02) in `clientCreatedAt` order.
+- If a transaction would cause negative stock upon replay (because server-side stock diverged while offline), **do not silently force it through and do not silently drop it** — mark `CONFLICT` and surface it in a Manager review queue (`GET /stock-transactions/conflicts`) for manual resolution (accept as override, adjust quantity, or discard).
+- Successfully synced transactions are permanently written as normal `StockTransaction` rows (same table/service as FR-02) — offline sync is not a separate data model, just a deferred-write path into the same one.
+
+### Acceptance Criteria
+- [ ] Transactions sync in the order they were created offline, not the order the network happened to deliver them
+- [ ] A sync that would cause negative stock is flagged as CONFLICT, not silently blocked or silently forced
+- [ ] Manager conflict-resolution queue correctly shows all CONFLICT-status items with enough context (item, quantity, server stock at sync time) to resolve them
+
+---
+
+## FR-13: Authentication & Login (with Two-Factor Authentication)
+
+### Data Model
+```prisma
+model User {
+  id                String   @id @default(uuid())
+  email             String   @unique
+  phone             String?
+  passwordHash      String
+  preferredLanguage String   @default("en")   // 'en' | 'ar'
+  preferredCurrency String   @default("SAR")
+  isActive          Boolean  @default(true)
+  lastLoginAt       DateTime?
+  createdAt         DateTime @default(now())
+  // role is no longer a flat field — see FR-00 UserAccess for per-scope role assignment
+  twoFactor         TwoFactorAuth?
+}
+
+enum TwoFactorMethod { TOTP, SMS, EMAIL }
+
+model TwoFactorAuth {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  isEnabled       Boolean  @default(false)
+  method          TwoFactorMethod @default(TOTP)
+  totpSecret      String?           // encrypted at rest; only set if method = TOTP
+  enforcedByPolicy Boolean @default(false)  // true if CHAIN_OWNER has mandated 2FA for all users in the tenant
+  enrolledAt      DateTime?
+  backupCodes     TwoFactorBackupCode[]
+}
+
+model TwoFactorBackupCode {
+  id              String   @id @default(uuid())
+  twoFactorAuthId String
+  twoFactorAuth   TwoFactorAuth @relation(fields: [twoFactorAuthId], references: [id])
+  codeHash        String            // single-use recovery code, hashed
+  usedAt          DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([twoFactorAuthId])
+}
+
+model TwoFactorChallenge {
+  id            String   @id @default(uuid())
+  userId        String
+  code          String            // hashed OTP, for SMS/EMAIL method
+  method        TwoFactorMethod
+  expiresAt     DateTime          // short-lived, e.g. 5 minutes
+  attemptCount  Int      @default(0)
+  consumedAt    DateTime?
+}
+
+model TrustedDevice {
+  id           String   @id @default(uuid())
+  userId       String
+  deviceToken  String   @unique   // stored client-side, presented to skip 2FA on "remember this device"
+  deviceLabel  String?            // e.g. "Manager's iPhone", "Front Desk PC"
+  expiresAt    DateTime           // e.g. 30 days
+  createdAt    DateTime @default(now())
+}
+
+model RefreshToken {
+  id         String   @id @default(uuid())
+  userId     String
+  tokenHash  String
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  deviceInfo String?
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+}
+```
+
+### API Endpoints
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/auth/login` | Step 1: email/phone + password → either full tokens (if 2FA not required) or a `pendingTwoFactorToken` |
+| `POST` | `/auth/2fa/verify` | Step 2: submit OTP/TOTP code + `pendingTwoFactorToken` → access + refresh tokens |
+| `POST` | `/auth/2fa/resend` | Resend SMS/email OTP (rate-limited) |
+| `POST` | `/auth/2fa/enroll/start` | Begin enrollment — returns TOTP QR/secret, or triggers SMS/email OTP for that method |
+| `POST` | `/auth/2fa/enroll/confirm` | Confirm enrollment with a valid code — activates `TwoFactorAuth.isEnabled = true`, generates backup codes |
+| `POST` | `/auth/2fa/disable` | Disable 2FA (requires current password + a valid 2FA code as a final check) |
+| `POST` | `/auth/2fa/backup-code` | Log in using a backup code instead of the primary method (invalidates that code) |
+| `POST` | `/auth/refresh` | Exchange refresh token for new access token |
+| `POST` | `/auth/logout` | Revoke refresh token (this device) |
+| `POST` | `/auth/logout-all` | Revoke all refresh tokens (all devices) |
+| `POST` | `/auth/forgot-password` | Sends reset link/OTP via email/SMS |
+| `POST` | `/auth/reset-password` | Consumes reset token, sets new password |
+| `GET` | `/auth/me` | Current user profile, including 2FA status and effective role/scope (from FR-00) |
+
+**POST /auth/login — Request:**
+```json
+{ "email": "manager@hotel.com", "password": "••••••••", "trustedDeviceToken": "optional-stored-token" }
+```
+**Response 200 (2FA required):**
+```json
+{
+  "requiresTwoFactor": true,
+  "pendingTwoFactorToken": "short-lived-opaque-token",
+  "method": "TOTP",
+  "maskedDestination": null
+}
+```
+**Response 200 (2FA satisfied via trusted device, or not enabled):**
+```json
+{
+  "accessToken": "jwt...",
+  "refreshToken": "opaque-token...",
+  "expiresIn": 900,
+  "user": { "id": "uuid", "preferredLanguage": "ar", "effectiveRole": "OUTLET_MANAGER", "effectiveOutletIds": ["uuid"] }
+}
+```
+
+**POST /auth/2fa/verify — Request:**
+```json
+{ "pendingTwoFactorToken": "...", "code": "482913", "trustDevice": true, "deviceLabel": "Front Desk PC" }
+```
+**Response 200:** same shape as the non-2FA login success response above. If `trustDevice: true`, a `TrustedDevice` row is created and its `deviceToken` returned to the client for storage (e.g., secure cookie or mobile keychain), so future logins from that device can skip the challenge until it expires.
+
+### Screens (Frontend)
+- **Login screen:** email/phone + password, "Forgot password?" link, language toggle (EN/AR) visible even before login.
+- **2FA challenge screen:** shown immediately after password submit if `requiresTwoFactor: true` — 6-digit code entry, "Resend code" (SMS/email methods only, with cooldown), "Use a backup code instead" link, "Trust this device for 30 days" checkbox.
+- **2FA enrollment screen (Settings):** choose method (Authenticator App / SMS / Email), for TOTP show QR code + manual entry key + confirmation code field, then display the one-time list of backup codes with a "download/print" option and an explicit "I've saved these" confirmation before proceeding.
+- **2FA management screen:** shows current status (enabled/disabled, method), "Regenerate backup codes," "Disable 2FA" (re-auth required), and — for CHAIN_OWNER — a chain-wide policy toggle "Require 2FA for all users."
+- **Forgot/Reset password flow:** unchanged from earlier draft.
+
+### Business Logic
+- Passwords hashed with `bcrypt` (cost ≥ 12) or `argon2`. `totpSecret` encrypted at rest (application-level encryption, not just relying on DB-at-rest encryption) since it's a long-lived shared secret.
+- **Login flow:**
+  1. Validate email + password.
+  2. If a valid, non-expired `TrustedDevice` token is presented and matches the user → skip 2FA, issue tokens directly.
+  3. Else if `TwoFactorAuth.isEnabled` (or `enforcedByPolicy` at the chain level) → issue a short-lived `pendingTwoFactorToken` (5–10 min, single-use, bound to the userId), dispatch OTP if method is SMS/EMAIL, and respond `requiresTwoFactor: true`. **Do not issue access/refresh tokens at this stage.**
+  4. Else → issue tokens directly (2FA not enabled and not enforced).
+- **Verify flow:** validate `pendingTwoFactorToken` (not expired, not already consumed), validate the code (TOTP: standard 30-second-window algorithm with ±1 window tolerance; SMS/EMAIL: compare against `TwoFactorChallenge.code` hash, enforce `attemptCount` ≤ 5 before invalidating and requiring a fresh login). On success, consume the token/challenge and issue tokens.
+- **Chain-level enforcement:** if a `CHAIN_OWNER` sets `enforcedByPolicy = true`, any user under that chain without `TwoFactorAuth.isEnabled` is required to complete enrollment on next login before reaching the app (a forced enrollment screen, not just a nag) — this should be checked at the `/auth/login` step, returning a distinct `requiresTwoFactorEnrollment: true` response rather than `requiresTwoFactor`.
+- **Backup codes:** generated as 10 single-use codes at enrollment, each stored as its own `TwoFactorBackupCode` row (hashed), individually marked `usedAt` on use rather than removed from a list — this also gives a natural audit trail of which backup code was used and when. Regenerating deletes all previous unused rows and inserts a fresh set of 10.
+- Rate-limit `/auth/login`, `/auth/2fa/verify`, and `/auth/2fa/resend` independently (e.g., 5 attempts / 15 min per user for verify, to blunt OTP brute-forcing specifically — this is a tighter limit than general login attempts since OTPs are only 6 digits).
+
+### Acceptance Criteria
+- [ ] A user with 2FA enabled cannot obtain access/refresh tokens from `/auth/login` alone — tokens are only issued after `/auth/2fa/verify` succeeds (or a valid trusted-device token is presented)
+- [ ] TOTP codes validate correctly within the standard time-drift tolerance and reject codes outside it
+- [ ] Backup codes are single-use — reusing a consumed backup code fails
+- [ ] A CHAIN_OWNER enabling policy-enforced 2FA causes non-enrolled users in that chain to be routed to mandatory enrollment on next login, not silently let through
+- [ ] Trusted-device tokens expire and correctly re-trigger the 2FA challenge after expiry
+- [ ] Repeated failed 2FA verify attempts trigger rate-limiting/lockout, not unlimited retries
+- [ ] Expired/invalid refresh token forces re-login, never silently fails open
+
+---
+
+## FR-14: User Management Screen
+
+### API Endpoints (role: CHAIN_OWNER — full; PROPERTY_MANAGER — scoped to own property, read/invite within it)
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/users` | List users, auto-scoped to caller's `effectiveOutletIds`/properties/chain (see FR-00) |
+| `POST` | `/users/invite` | Invite a new user with one or more scope grants (`scopeType` + `scopeId` + `role` per grant) |
+| `POST` | `/users/invite/:token/accept` | Invited user sets password (and optionally enrolls 2FA if enforced), account activates |
+| `GET` | `/users/:id` | User detail, including all `UserAccess` grants |
+| `PATCH` | `/users/:id/access` | Add/remove/update scope grants for a user |
+| `DELETE` | `/users/:id` | Deactivate (soft delete — never hard-delete, for audit-trail integrity) |
+| `POST` | `/users/:id/reset-password-admin` | Admin-triggered forced password reset |
+| `POST` | `/users/:id/reset-2fa-admin` | Admin-triggered 2FA reset (e.g., user lost their device) — requires the acting admin to itself pass a 2FA step, since this is a sensitive override |
+| `GET` | `/users/:id/audit-log` | Actions performed by this user |
+
+**POST /users/invite — Request:**
+```json
+{
+  "email": "chef@property1.com",
+  "phone": "+9665xxxxxxx",
+  "grants": [
+    { "scopeType": "OUTLET", "scopeId": "uuid-outlet-1", "role": "CHEF" }
+  ]
+}
+```
+A user can be invited with multiple grants at once (e.g., `OUTLET_MANAGER` at two specific outlets, or `PROPERTY_MANAGER` at one property).
+
+### Screens (Frontend)
+- **User list screen:** table/card list with name, top-level role summary (e.g., "Property Manager — Jeddah Hotel" or "Chef — Main Restaurant, Pool Bar"), status (Active/Invited/Deactivated), search + scope filter. For a CHAIN_OWNER, this list is chain-wide with a property filter; for a PROPERTY_MANAGER, it's pre-scoped to their property.
+- **Invite user screen:** email/phone, then an **access grant builder** — pick scope level (Chain / Property / Outlet), pick the specific entity from a tree selector (using the `/chains/:id/hierarchy` endpoint from FR-00), pick role, with an "add another grant" option for users needing access to multiple outlets/properties.
+- **User detail/edit screen:** list of current grants (editable/removable), "add grant" action, deactivate toggle, "view audit log" link, "force password reset" and "reset 2FA" buttons (both requiring the acting admin's own re-authentication).
+- **Pending invites view:** shows invited-but-not-yet-activated users with a "resend invite" action.
+
+### Business Logic
+- `POST /users/invite`: creates a `User` row with `isActive: false` and no `passwordHash` yet, creates the requested `UserAccess` rows immediately (they simply have no effect until the user activates), generates a signed invite token (expires in 7 days), sends via email/SMS.
+- **Grant validation:** the inviting user cannot grant a scope broader than their own effective access — e.g., a `PROPERTY_MANAGER` cannot grant `CHAIN`-scoped access to someone, and cannot grant access to a property other than their own (`403` if attempted).
+- Access/role changes via `PATCH /users/:id/access` take effect on the next request (per FR-00's per-request resolution — no forced logout needed) unless an immediate revoke is explicitly required, in which case chain the call with `/auth/logout-all` for that user.
+- Deactivating a user does not delete their historical `StockTransaction`, `PurchaseOrder`, or `AuditLog` records — all remain intact with `performedById` pointing to the (now inactive) user, and their `UserAccess` grants are retained but ignored (inactive users always fail auth regardless of grants).
+- If the chain has `enforcedByPolicy` 2FA (FR-13) turned on, the invite-acceptance flow routes the new user through mandatory 2FA enrollment before they reach the app for the first time.
+
+### Acceptance Criteria
+- [ ] Invited user cannot log in until they complete the accept-invite/set-password flow
+- [ ] A PROPERTY_MANAGER cannot grant access outside their own property, even to a user they're inviting fresh (403 on attempt)
+- [ ] Deactivating a user preserves all their historical transaction/audit records unchanged, and immediately blocks login regardless of remaining active grants
+- [ ] Expired invite tokens are rejected with a clear "invite expired, request a new one" message
+- [ ] A user with grants at multiple outlets sees a correct combined `effectiveOutletIds` list reflected in what data they can access
+
+---
+
+## FR-15: Multilingual Support (Localization & RTL), Launching with English & Arabic
+
+### Approach
+The application is architected for **any number of languages**, not just two — language packs are data-driven (JSON resource files + a `Language` registry table), so adding a new language later is a content/translation task, not a code change. **English and Arabic ship at launch** (Arabic requiring full **RTL** — right-to-left — layout, not just translated strings), with the architecture ready for additional languages (e.g., French, Urdu, Hindi, Spanish, Turkish) to be added by dropping in a new resource file and registering it, with no changes to components or business logic.
+
+### Data Model
+```prisma
+model Language {
+  code        String   @id   // ISO 639-1, e.g. "en", "ar", "fr", "ur"
+  name        String        // native display name, e.g. "العربية" for Arabic
+  direction   String        // "ltr" | "rtl"
+  isActive    Boolean  @default(true)   // controls whether it's offered in the language switcher
+}
+```
+`User.preferredLanguage` (FR-13) references `Language.code` rather than a hardcoded `'en' | 'ar'` enum, so the field itself never needs a schema change to support a new language.
+
+### Backend
+- All user-facing strings generated by the backend (email templates, SMS templates, PDF report labels, alert messages, validation error messages) must be **key-based**, resolved server-side using the requesting user's `preferredLanguage` (or an `Accept-Language` header override), not hardcoded English.
+- Structure: `/locales/{languageCode}.json` (e.g., `en.json`, `ar.json`, and any future `fr.json`, `ur.json`, ...) — flat key-value resource files loaded via a library like `i18next` (Node) or NestJS's `nestjs-i18n`. Adding a language is: add the JSON file, insert a `Language` row, done — no controller/service code touches language-specific logic.
+- Master/reference data that is inherently user-entered (item names, supplier names, category names) is stored as-is (whatever language the user typed) — **not** auto-translated. Only system-generated UI text, labels, and notifications are localized.
+- Numeric/date formatting in server-generated PDFs/exports respects locale (e.g., Arabic-Indic numerals are **not** used by default for Arabic — Gulf-region convention is Western numerals with Arabic labels; this is a configurable per-outlet setting rather than assumed, and the same pattern extends to any future locale's numeral/date conventions).
+
+### Frontend (React / React Native)
+- i18n library: `i18next` + `react-i18next` (web) and `i18next` + `react-native-localize` (mobile) — both support an arbitrary number of loaded language packs out of the box, so no rework is needed to go from 2 to 5 languages.
+- **Direction handling (not just "Arabic special-cased"):** the app reads `direction` from the `Language` record for the active language and applies it generically — any future RTL language (e.g., Urdu, Hebrew, Farsi) gets correct mirroring automatically, and any future LTR language just works without special-casing.
+  - React Native: use `I18nManager.forceRTL(true/false)` and `I18nManager.isRTL`, driven by the selected language's `direction` field; this requires an app reload/restart to fully apply on native — the UI should show a "restart to apply" prompt on language change on mobile, not attempt a silent hot-swap.
+  - Web: set `dir="{language.direction}"` on the root `<html>`/container element and use CSS logical properties (`margin-inline-start` instead of `margin-left`, etc.) throughout, or a CSS-in-JS solution with RTL-plugin support (e.g., `stylis-plugin-rtl`), so layout mirrors automatically rather than requiring hand-flipped styles per component.
+- **Component-level considerations:**
+  - Icons implying direction (back arrows, forward chevrons) must flip whenever `direction === 'rtl'`, for any language, not conditionally on "is it Arabic."
+  - Number inputs, date pickers, and currency inputs remain LTR internally even inside an RTL layout (standard convention — numbers read left-to-right regardless of surrounding text direction).
+  - Charts/graphs (consumption trends, dashboards) — axis direction and legend placement mirror under RTL for consistency, but this is lower priority than core transactional screens.
+- **Language switcher:** presented as a searchable list (not just a 2-way toggle) driven by `GET /languages` (active `Language` rows), available from the Login screen (pre-auth) and from a Settings/Profile screen (post-auth), persisted to `User.preferredLanguage` via `PATCH /users/:id` (self-update allowed for this one field regardless of role).
+
+### API Endpoints
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/languages` | List active languages for the switcher (code, native name, direction) |
+| `POST` | `/languages` | Register a new language (admin/internal use when onboarding a new locale) |
+
+### Acceptance Criteria
+- [ ] Adding a new language (e.g., French) requires only a new resource file + a `Language` row — no component or controller code changes
+- [ ] Any language flagged `direction: rtl` mirrors the entire layout automatically, not just Arabic specifically
+- [ ] All system-generated notifications (alerts, PO approval emails, reports) render in the recipient's `preferredLanguage`
+- [ ] User-entered data (item names, supplier names) displays exactly as entered, untranslated, regardless of UI language
+- [ ] Numbers, dates, and currency amounts remain correctly formatted and left-to-right even within an RTL-rendered screen
+- [ ] Missing translation keys fall back to English (never render a raw key like `alert.low_stock.title` to the user) and are logged for translator follow-up
+
+---
+
+## FR-16: Multi-Currency Support
+
+### Approach
+Each **outlet** has a configured **base currency** (used for all internal valuation, reporting, and cross-outlet consolidation). Individual transactions (POs, GRNs) can be raised in a **different currency** (e.g., a supplier who invoices in USD while the outlet's base currency is SAR), with amounts stored in both the transaction currency and converted base-currency equivalent.
+
+### Data Model additions
+```prisma
+model Outlet {
+  id            String   @id @default(uuid())
+  name          String
+  baseCurrency  String   @default("SAR")
+  // ...existing fields
+}
+```
+(See FR-04's `Currency` and `ExchangeRate` models above — shared across PO/GRN and any future module needing currency conversion, e.g. multi-outlet consolidated dashboard reporting in a group-level reporting currency.)
+
+### API Endpoints
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/outlets/:id/currency-settings` | Base currency + supported transaction currencies for this outlet |
+| `PATCH` | `/outlets/:id/currency-settings` | Update base currency (CHAIN_OWNER only — see business rule below) |
+
+### Business Logic
+- **Base currency changes are heavily restricted:** once an outlet has any `StockTransaction`, `PurchaseOrder`, or `GRN` history, changing `baseCurrency` is blocked by default (`409`) because it would invalidate all historical valuation reporting. If genuinely required (e.g., correcting a setup mistake in month 1), it must go through an explicit "re-base" admin operation that recalculates/relabels historical records — flagged as a rare, manually-supervised operation, not a routine settings change.
+- Every value amount stored (`Item.costPrice`, PO/GRN totals, `StockTransaction` — if cost tracking is added there later) should conceptually carry a currency; for MVP, `Item.costPrice` is always in the outlet's base currency (simplifies stock valuation reporting — FR-10), while PO/GRN can be in a foreign currency and are converted to base at GRN finalization for the purpose of updating any base-currency cost references.
+- **Consolidated dashboard (FR-08)** across multiple outlets with different base currencies converts each outlet's figures to a configurable **group reporting currency** using the latest `ExchangeRate`, clearly labeling this as a converted/estimated figure (not transactional truth) in the UI.
+- Currency formatting on the frontend uses `Intl.NumberFormat(locale, { style: 'currency', currency: code })` so both the numeral formatting and currency symbol placement respect the active language/locale (e.g., symbol placement differs between `en-SA` and `ar-SA` conventions).
+
+### Acceptance Criteria
+- [ ] An outlet's base currency cannot be changed via the standard settings endpoint once transactional history exists
+- [ ] A PO raised in a non-base currency correctly stores both the original amount and the base-currency equivalent at the snapshotted rate
+- [ ] Consolidated multi-outlet dashboard clearly indicates converted figures are FX-estimated, not exact
+- [ ] Currency values display with correct symbol and formatting for both English and Arabic locales
+
+---
+
+## FR-17: Design System — Modern, Polished, "Smart" Visual Identity
+
+### Approach
+The product's visual quality is a stated market differentiator — it should look like a premium, purpose-built SaaS product, not a generic admin-panel template. This translates into concrete, buildable requirements rather than just an aesthetic aspiration:
+
+### Design Requirements
+- **Design tokens, not ad-hoc styling:** a single source of truth for color palette (primary/secondary/accent + semantic colors for success/warning/danger/info), typography scale, spacing scale, border-radius, and shadow levels — implemented as a Tailwind config / CSS variable set, referenced everywhere, never hardcoded hex values or magic-number spacing in components.
+- **Distinctive, not templated:** avoid the generic "default Bootstrap/Material admin dashboard" look. Choose a typeface pairing with actual character (not just system-default sans), a considered accent color that shows up consistently (buttons, active states, chart highlights), and purposeful use of whitespace rather than cramming.
+- **Dashboard-first visual language:** key screens (Owner/Manager dashboards, outlet/property/chain switcher, alerts panel) use card-based layouts with clear visual hierarchy — the single most important number on any screen (e.g., "3 items below reorder point") should be the most visually prominent element, not buried in a table.
+- **Data visualization quality:** charts (consumption trends, forecasts, stock valuation) use a consistent, tasteful color system tied to the same design tokens — not default chart-library rainbow palettes.
+- **Micro-interactions:** meaningful transitions and feedback (e.g., a stock-count input that visibly confirms a save, a low-stock alert badge that animates in) rather than static, flat state changes — used sparingly enough that they read as polish, not distraction.
+- **Dark mode:** supported from the design-token layer outward (tokens define both light and dark values), since back-of-house staff often work in dim kitchen/storage environments.
+- **Consistency across web and mobile:** the React (web) and React Native (mobile) apps share the same design tokens and component design language, so the product feels like one product across devices, not two different apps that happen to share a backend.
+- **Empty/loading/error states designed, not default:** every list/dashboard screen has a deliberately designed empty state (e.g., first-time "no items yet — add your first item" with an illustration, not a blank table), loading skeleton, and error state — these are disproportionately visible during onboarding and demos, so they matter more than their frequency suggests.
+
+### Implementation Notes
+- Use the project's frontend design guidance (design tokens, spacing/typography scale, and component conventions) consistently across every screen built for FR-01 through FR-16 — this FR isn't a separate module to build once, it's a constraint that applies to every screen in every other FR.
+- Establish the token set and a small library of core components (button, input, card, badge, modal, table, empty-state) **before** building feature screens, so later FRs consume a consistent component library rather than each screen inventing its own styling.
+
+### Acceptance Criteria
+- [ ] No component hardcodes a raw color/spacing value outside the design-token set
+- [ ] Every primary dashboard screen has a clear single visual focal point, verifiable by a "does the most important number stand out" review
+- [ ] Dark mode renders correctly (contrast-checked) across all core screens, not just a subset
+- [ ] Web and mobile apps are visually recognizable as the same product side-by-side
+- [ ] Every list/table screen has a designed empty state, not a blank area
+
+---
+
+## FR-18: Activity & Transaction Log (System-Wide)
+
+### Approach
+Beyond the per-module `AuditLog` writes already specified in FR-11 (RBAC) and referenced throughout FR-01–FR-16, the system maintains a **unified, queryable Activity Log** — a single place where an Owner/Manager can see "what happened" across the whole system, and a **Transaction Log** specifically for anything touching stock or money, satisfying both operational transparency and compliance/audit needs.
+
+### Data Model
+```prisma
+enum ActivityCategory { AUTH, USER_MGMT, ITEM, STOCK, SUPPLIER, PURCHASE_ORDER, GRN, TRANSFER, RECIPE, ALERT, REPORT, SETTINGS, TAX_CURRENCY }
+
+model ActivityLog {
+  id            String   @id @default(uuid())
+  chainId       String
+  propertyId    String?
+  outletId      String?
+  userId        String?           // null for system-generated events (e.g., scheduled AI jobs)
+  category      ActivityCategory
+  action        String            // e.g. "ITEM_CREATED", "PO_APPROVED", "LOGIN_SUCCESS", "2FA_ENABLED"
+  entityType    String?
+  entityId      String?
+  description   String            // human-readable, localized at render time via a message key, not stored pre-translated
+  metadata      String?           // JSON-serialized string (NVARCHAR(MAX)) — SQL Server has no native Json type via Prisma, so serialize/deserialize (JSON.stringify/JSON.parse) at the repository layer
+  ipAddress     String?
+  deviceInfo    String?
+  createdAt     DateTime @default(now())
+
+  @@index([outletId, createdAt])
+  @@index([chainId, createdAt])
+  @@index([userId, createdAt])
+  @@index([category, createdAt])
+}
+
+model TransactionLog {
+  id             String   @id @default(uuid())
+  outletId       String
+  transactionType String  // 'STOCK_TRANSACTION' | 'PURCHASE_ORDER' | 'GRN' | 'TRANSFER' | 'SALE'
+  referenceId    String            // FK to the actual StockTransaction/PO/GRN/Transfer/Sale row
+  valueAmount    Decimal? @db.Decimal(12,2)
+  currencyCode   String?
+  performedById  String?
+  summary        String            // e.g. "Received 18kg Basmati Rice from Al-Fahad Trading, SAR 1,566.00 incl. tax"
+  createdAt      DateTime @default(now())
+
+  @@index([outletId, createdAt])
+  @@index([transactionType, createdAt])
+}
+```
+
+### API Endpoints
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/activity-log` | Filterable feed (`outletId`, `propertyId`, `chainId`, `category`, `userId`, `dateFrom`, `dateTo`) |
+| `GET` | `/transaction-log` | Filterable feed of value-bearing transactions (`outletId`, `transactionType`, `dateFrom`, `dateTo`, `minValue`) |
+| `GET` | `/activity-log/export?format=pdf|xlsx` | Export for compliance/audit purposes |
+
+### Business Logic
+- **Every write path in FR-01 through FR-16 emits both:**
+  1. The module-specific record already specified (e.g., a `StockTransaction` row, a `POLine`, an `AuditLog` entry per FR-11's mutating-endpoint rule), **and**
+  2. A corresponding `ActivityLog` row (always) and, if the action carries a monetary/stock value, a `TransactionLog` row.
+  This is implemented as a single cross-cutting NestJS interceptor/event-listener subscribing to a domain-event bus (e.g., emit `activity.recorded` events from each service after a successful write) rather than hand-adding logging calls in every service method — keeps it consistent and impossible to forget in new modules.
+- **Login/auth events** (FR-13): `LOGIN_SUCCESS`, `LOGIN_FAILED`, `2FA_ENABLED`, `2FA_DISABLED`, `PASSWORD_RESET`, `LOGOUT` all produce `ActivityLog` rows with `category: AUTH` — this is what lets a Chain Owner later answer "who logged in and when," which is a common security/compliance question.
+- **Rendering:** `description` is composed from a message-key + structured `metadata` at write time (e.g., `key: "activity.item.created", metadata: {itemName, sku}`) so the **feed itself is multilingual** (FR-15) — a Manager viewing in Arabic and an Owner viewing in English see the same event correctly localized, not a frozen English sentence.
+- **Retention:** activity/transaction logs are retained indefinitely by default (they're small, append-only rows) but exposed via a configurable archive/export-then-purge policy for chains with strict data-retention requirements — never silently auto-deleted without an explicit chain-level setting.
+- **Performance:** high-volume categories (STOCK) should be paginated with cursor-based pagination, not offset pagination, given potentially large row counts at scale.
+
+### Screens (Frontend)
+- **Activity feed screen:** chronological, filterable, human-readable feed (e.g., "Ahmed approved PO #1042 — SAR 3,200.00" / "أحمد وافق على أمر الشراء #1042 — 3,200.00 ريال") with category icons and a search/filter bar; accessible to OUTLET_MANAGER and above, scoped to their effective outlets per FR-00.
+- **Transaction log screen:** a finance-oriented view — every stock movement, PO, GRN, and transfer with its value, filterable by date range and type, exportable — this is the screen an owner hands to an accountant.
+- Both screens respect the RBAC field-level restrictions from FR-11 (e.g., a CHEF-scoped user, if given any log access at all, would not see cost/value figures).
+
+### Acceptance Criteria
+- [ ] Every mutating action anywhere in the system (across all FRs) produces exactly one `ActivityLog` entry, verified via an automated test that exercises each write endpoint and asserts a corresponding log row
+- [ ] Every value-bearing transaction (stock movement, PO, GRN, transfer, sale) produces exactly one `TransactionLog` entry with a correct value/currency
+- [ ] The activity feed renders correctly localized regardless of the viewing user's language, without needing separate stored copies per language
+- [ ] Activity/transaction log filtering correctly respects the viewer's effective outlet/property/chain scope (FR-00) — a PROPERTY_MANAGER never sees another property's log entries
+- [ ] Export produces a complete, correctly formatted file for the filtered range
+
+---
+
+## Suggested Build Order for a Coding Agent
+
+Given dependencies between modules, implement in this order:
+1. **Multi-Tenant Hierarchy (FR-00)** — Chain/Property/Outlet models and the `UserAccess` scope-resolution logic; everything else depends on `effectiveOutletIds` being resolvable
+2. **Auth & Login incl. 2FA (FR-13)** — nothing else works without this
+3. **RBAC (FR-11)** + **User Management (FR-14)** — role guards and the screens to manage them, built on top of FR-00's scope model
+4. **Design System foundation (FR-17)** — establish tokens and the core component library before any feature screen is built, so nothing needs restyling later
+5. **Localization scaffolding (FR-15)** — set up i18n framework and the `Language` registry early; retrofitting RTL/multilingual later is expensive, so wire this up from the first screen built, even with only English + Arabic content initially
+6. **Activity & Transaction Log plumbing (FR-18)** — build the event-emission mechanism (domain event bus / interceptor) now, so every module built afterward emits into it automatically rather than needing retrofitted logging calls
+7. **Item Master (FR-01)** — foundational entity
+8. **Stock Transactions (FR-02)** — core engine everything else writes through
+9. **Currency & Tax configuration (FR-16, tax portion of FR-04)** — set up `Currency`, `TaxRate`, `ExchangeRate` reference data before building PO/GRN
+10. **Suppliers (FR-03)** → **Purchase Orders & GRN (FR-04, with tax/currency)**
+11. **Recipes/BOM (FR-05)** → **POS Auto-Deduction (FR-06)**
+12. **Alerts (FR-07)** — depends on FR-02 event emission
+13. **Multi-outlet/Multi-property Transfers (FR-08)**
+14. **Barcode Scanning (FR-09)** — mostly client-side, thin backend
+15. **Reporting (FR-10)** — read-only, depends on all prior data existing, must respect locale/currency formatting and property/chain-level rollups
+16. **Offline Sync (FR-12)** — depends on FR-02 being stable and idempotent
+
+Each numbered item above is sized to be a reasonable single implementation pass (with its own tests) for an agent working sprint-by-sprint, matching the SDLC document's Phase 1/2 breakdown (Section 8).

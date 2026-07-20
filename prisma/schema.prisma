@@ -1,0 +1,74 @@
+// FR-00: Multi-Tenant Organizational Hierarchy (Chain -> Property -> Outlet)
+// Models transcribed as specified in docs/Technical_Spec_Core_Inventory_Module.md.
+// SQL Server via Prisma — no native scalar arrays / Json type; see the spec's
+// "SQL Server schema compatibility notes" for why that constrains later FRs.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+// NOTE: Prisma's SQL Server connector does not support the `enum` schema
+// construct at all (unlike its Postgres/MySQL connectors) — declaring one
+// here fails schema validation outright. So PropertyType/OutletType/ScopeType/
+// Role are modeled as `String` columns instead, with the allowed value sets
+// enforced as TS union types + class-validator `@IsIn(...)` at the application
+// layer (src/tenancy/constants/enums.ts) — the same "enforced above the DB,
+// not by it" outcome the spec's compatibility notes describe, just moved one
+// layer up since the connector won't accept the enum syntax itself.
+
+model Chain {
+  id               String     @id @default(uuid())
+  name             String
+  baseCurrency     String     @default("SAR")
+  subscriptionPlan String     @default("STANDARD")
+  isActive         Boolean    @default(true)
+  createdAt        DateTime   @default(now())
+  properties       Property[]
+}
+
+model Property {
+  id       String   @id @default(uuid())
+  chainId  String
+  chain    Chain    @relation(fields: [chainId], references: [id])
+  name     String
+  type     String // PropertyType: HOTEL | STANDALONE_RESTAURANT | RESTAURANT_GROUP_SITE
+  address  String?
+  timezone String   @default("Asia/Riyadh")
+  isActive Boolean  @default(true)
+  outlets  Outlet[]
+
+  @@index([chainId])
+}
+
+model Outlet {
+  id                  String   @id @default(uuid())
+  propertyId          String
+  property            Property @relation(fields: [propertyId], references: [id])
+  chainId             String // denormalized from property.chainId for fast scoped queries — see spec note
+  name                String
+  type                String // OutletType: RESTAURANT | BAR | KITCHEN | STORE | ROOM_SERVICE
+  baseCurrency        String   @default("SAR")
+  poApprovalThreshold Decimal? @db.Decimal(12, 2)
+  isActive            Boolean  @default(true)
+
+  @@index([propertyId])
+  @@index([chainId])
+}
+
+// userId intentionally has no relation to a User model yet — User (FR-13) doesn't
+// exist until the next build-order step. The FK relation is added when FR-13 lands.
+model UserAccess {
+  id        String   @id @default(uuid())
+  userId    String
+  scopeType String // ScopeType: CHAIN | PROPERTY | OUTLET
+  scopeId   String // a chainId, propertyId, or outletId, depending on scopeType
+  role      String // Role: CHAIN_OWNER | PROPERTY_MANAGER | OUTLET_MANAGER | STORE_STAFF | CHEF
+  createdAt DateTime @default(now())
+
+  @@unique([userId, scopeType, scopeId])
+}
