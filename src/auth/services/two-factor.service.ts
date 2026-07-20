@@ -21,7 +21,6 @@ import { EnrollStartDto } from '../dto/enroll-start.dto';
 import { EnrollConfirmDto } from '../dto/enroll-confirm.dto';
 import { DisableTwoFactorDto } from '../dto/disable-two-factor.dto';
 import { SetTwoFactorPolicyDto } from '../dto/set-two-factor-policy.dto';
-import { assertEffectiveRole } from '../../tenancy/guards/assert-effective-role.util';
 import { RequestWithAccess } from '../../tenancy/types/request-with-access';
 import {
   PROPERTY_REPOSITORY,
@@ -170,7 +169,7 @@ export class TwoFactorService {
 
   async disable(userId: string, dto: DisableTwoFactorDto): Promise<void> {
     const user = await this.getUserOrThrow(userId);
-    if (!(await this.passwordService.verify(dto.password, user.passwordHash))) {
+    if (!user.passwordHash || !(await this.passwordService.verify(dto.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid password');
     }
 
@@ -189,16 +188,31 @@ export class TwoFactorService {
     await this.twoFactorBackupCodeRepository.deleteUnused(twoFactor.id);
   }
 
+  /** FR-14's admin override (`/users/:id/reset-2fa-admin`, e.g. "user lost
+   * their device") — same end state as `disable()` but skips the target's
+   * own password/code check, since the caller (an admin) has already
+   * re-authenticated themselves before this is invoked (see
+   * UsersService.assertAdminReauth). A no-op if the target has no 2FA. */
+  async adminReset(userId: string): Promise<void> {
+    const twoFactor = await this.twoFactorAuthRepository.findByUserId(userId);
+    if (!twoFactor) return;
+    await this.twoFactorAuthRepository.update(userId, {
+      isEnabled: false,
+      totpSecret: null,
+      enrolledAt: null,
+    });
+    await this.twoFactorBackupCodeRepository.deleteUnused(twoFactor.id);
+  }
+
   /**
    * Not in the spec's FR-13 endpoint table — the table has no route for
    * setting `TwoFactorAuth.enforcedByPolicy`, needed for the business logic
-   * & acceptance criteria around chain-wide enforcement. Gated the same way
-   * as FR-00's tenancy endpoints: an inline `assertEffectiveRole` check
-   * ahead of FR-11's real RBAC guard.
+   * & acceptance criteria around chain-wide enforcement. Authorization
+   * (CHAIN_OWNER on this chain) is now handled by FR-11's RolesGuard via
+   * `@Roles('CHAIN_OWNER') @ResourceScope('chain', 'body.chainId')` on the
+   * controller route — this method is pure business logic.
    */
-  async setPolicy(request: RequestWithAccess, dto: SetTwoFactorPolicyDto): Promise<{ affectedUsers: number }> {
-    assertEffectiveRole(request, 'chain', dto.chainId, ['CHAIN_OWNER']);
-
+  async setPolicy(dto: SetTwoFactorPolicyDto): Promise<{ affectedUsers: number }> {
     const propertyIds = await this.propertyRepository.findIdsByChainId(dto.chainId);
     const outletIds = await this.outletRepository.findIdsByChainId(dto.chainId);
     const [chainUserIds, propertyUserIds, outletUserIds] = await Promise.all([
@@ -246,6 +260,21 @@ export class TwoFactorService {
       }
     }
     return false;
+  }
+
+  /**
+   * Public wrapper around the TOTP-or-backup-code check, reused by FR-14's
+   * admin-triggered `/users/:id/reset-2fa-admin` and
+   * `/users/:id/reset-password-admin`, both of which require the acting
+   * admin to pass a fresh 2FA check as part of the same request (spec:
+   * "requires the acting admin to itself pass a 2FA step" / "requiring the
+   * acting admin's own re-authentication"). Returns false (never throws) if
+   * the admin doesn't even have 2FA enabled — callers reject that case.
+   */
+  async verifyCurrentCode(userId: string, code: string): Promise<boolean> {
+    const twoFactor = await this.twoFactorAuthRepository.findByUserId(userId);
+    if (!twoFactor?.isEnabled) return false;
+    return this.verifyFinalCheckCode(twoFactor.id, twoFactor.totpSecret, code);
   }
 
   private async getUserOrThrow(userId: string) {

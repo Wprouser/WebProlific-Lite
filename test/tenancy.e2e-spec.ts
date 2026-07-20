@@ -45,6 +45,7 @@ describe('Tenancy (FR-00) e2e', () => {
   });
 
   afterEach(async () => {
+    await prisma.auditLog.deleteMany(); // FR-11: chain/property mutations now write these
     await prisma.userAccess.deleteMany();
     await prisma.outlet.deleteMany();
     await prisma.property.deleteMany();

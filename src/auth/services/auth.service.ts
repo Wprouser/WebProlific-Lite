@@ -66,14 +66,30 @@ export class AuthService {
 
   async login(dto: LoginDto): Promise<LoginResponse> {
     const user = await this.userRepository.findByEmail(dto.email);
-    // Same generic message whether the email doesn't exist or the password is
+    // Same generic message whether the email doesn't exist, the account has
+    // no password yet (FR-14 invite not accepted), or the password is
     // wrong — don't leak which one it was.
-    if (!user || !user.isActive || !(await this.passwordService.verify(dto.password, user.passwordHash))) {
+    if (
+      !user ||
+      !user.isActive ||
+      !user.passwordHash ||
+      !(await this.passwordService.verify(dto.password, user.passwordHash))
+    ) {
       throw new UnauthorizedException('Invalid credentials');
     }
+    return this.completeLoginFlow(user, dto.trustedDeviceToken);
+  }
 
-    if (dto.trustedDeviceToken) {
-      const hash = this.tokenService.hashOpaqueToken(dto.trustedDeviceToken);
+  /**
+   * Shared tail of the login business logic (spec steps 2-4: trusted-device
+   * skip, 2FA policy enforcement/challenge, or direct token issuance) —
+   * factored out so FR-14's accept-invite flow can reuse it verbatim as its
+   * own "first login" once the user sets their password, without
+   * re-deriving the 2FA-enforcement logic.
+   */
+  async completeLoginFlow(user: User, trustedDeviceToken?: string): Promise<LoginResponse> {
+    if (trustedDeviceToken) {
+      const hash = this.tokenService.hashOpaqueToken(trustedDeviceToken);
       const device = await this.trustedDeviceRepository.findValidByTokenHash(hash);
       if (device && device.userId === user.id) {
         return this.issueTokensForUser(user);
@@ -198,15 +214,22 @@ export class AuthService {
     const user = await this.userRepository.findByEmail(dto.email);
     // Always respond the same way whether or not the account exists.
     if (user) {
-      const raw = this.tokenService.generateOpaqueToken();
-      await this.passwordResetTokenRepository.create({
-        userId: user.id,
-        tokenHash: this.tokenService.hashOpaqueToken(raw),
-        expiresAt: this.tokenService.passwordResetExpiry(),
-      });
-      await this.otpDispatcher.dispatch(user.email, 'EMAIL', raw);
+      await this.issuePasswordResetToken(user);
     }
     return { sent: true };
+  }
+
+  /** Reused by FR-14's admin-triggered `/users/:id/reset-password-admin` —
+   * same token issuance, just invoked without the caller needing to know
+   * the target's email/current password. */
+  async issuePasswordResetToken(user: User): Promise<void> {
+    const raw = this.tokenService.generateOpaqueToken();
+    await this.passwordResetTokenRepository.create({
+      userId: user.id,
+      tokenHash: this.tokenService.hashOpaqueToken(raw),
+      expiresAt: this.tokenService.passwordResetExpiry(),
+    });
+    await this.otpDispatcher.dispatch(user.email, 'EMAIL', raw);
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<{ success: true }> {

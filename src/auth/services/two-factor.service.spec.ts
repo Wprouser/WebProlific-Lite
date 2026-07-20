@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { TwoFactorService } from './two-factor.service';
 import { UserRepository } from '../repositories/user.repository';
 import { TwoFactorAuthRepository } from '../repositories/two-factor-auth.repository';
@@ -118,28 +118,13 @@ describe('TwoFactorService', () => {
     };
   }
 
-  function requestWithRole(role: string | undefined) {
-    return {
-      effectiveAccess: {
-        roleForChain: () => role,
-      },
-    } as unknown as RequestWithAccess;
-  }
-
+  // Authorization (CHAIN_OWNER on this chain) is now RolesGuard's job — see
+  // src/rbac/guards/roles.guard.spec.ts — so setPolicy itself is pure
+  // business logic with no request/role argument.
   describe('setPolicy', () => {
-    it('rejects a caller without CHAIN_OWNER on that chain', async () => {
-      const { service } = buildService();
-      await expect(
-        service.setPolicy(requestWithRole('PROPERTY_MANAGER'), {
-          chainId: 'c1',
-          enforcedByPolicy: true,
-        }),
-      ).rejects.toThrow(ForbiddenException);
-    });
-
     it('dedups userIds across CHAIN/PROPERTY/OUTLET scopes and applies the policy to each once', async () => {
       const { service, twoFactorAuthRepository } = buildService();
-      const result = await service.setPolicy(requestWithRole('CHAIN_OWNER'), {
+      const result = await service.setPolicy({
         chainId: 'c1',
         enforcedByPolicy: true,
       });

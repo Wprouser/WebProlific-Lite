@@ -3,9 +3,12 @@ import { User } from '../domain/user.entity';
 export interface CreateUserInput {
   email: string;
   phone?: string;
-  passwordHash: string;
+  // Omitted for FR-14's invite flow — the user has no password until they
+  // accept the invite.
+  passwordHash?: string;
   preferredLanguage?: string;
   preferredCurrency?: string;
+  isActive?: boolean;
 }
 
 export interface UpdateUserInput {

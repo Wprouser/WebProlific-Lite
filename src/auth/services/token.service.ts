@@ -62,4 +62,10 @@ export class TokenService {
     const minutes = Number(this.config.get<string>('PENDING_2FA_TOKEN_TTL_MIN') ?? 10);
     return new Date(Date.now() + minutes * 60 * 1000);
   }
+
+  /** FR-14: invite tokens expire in 7 days per spec. */
+  inviteTokenExpiry(): Date {
+    const days = Number(this.config.get<string>('INVITE_TOKEN_TTL_DAYS') ?? 7);
+    return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+  }
 }

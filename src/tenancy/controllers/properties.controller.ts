@@ -3,41 +3,60 @@ import { PropertiesService } from '../services/properties.service';
 import { CreatePropertyDto } from '../dto/create-property.dto';
 import { UpdatePropertyDto } from '../dto/update-property.dto';
 import { RequestWithAccess } from '../types/request-with-access';
-import { assertEffectiveRole, assertHasAccess } from '../guards/assert-effective-role.util';
+import { Roles } from '../../rbac/decorators/roles.decorator';
+import { ResourceScope } from '../../rbac/decorators/resource-scope.decorator';
+import { AuditLogService } from '../../rbac/services/audit-log.service';
 
 @Controller()
 export class PropertiesController {
-  constructor(private readonly propertiesService: PropertiesService) {}
+  constructor(
+    private readonly propertiesService: PropertiesService,
+    private readonly auditLogService: AuditLogService,
+  ) {}
 
   @Post('chains/:chainId/properties')
-  create(
+  @Roles('CHAIN_OWNER')
+  @ResourceScope('chain', 'chainId')
+  async create(
     @Param('chainId') chainId: string,
     @Body() dto: CreatePropertyDto,
     @Req() request: RequestWithAccess,
   ) {
-    // Only CHAIN_OWNER can create properties (spec: FR-00 Business Logic).
-    // TODO: replace with @Roles() guard once FR-11 is implemented
-    assertEffectiveRole(request, 'chain', chainId, ['CHAIN_OWNER']);
-    return this.propertiesService.create(chainId, dto);
+    const property = await this.propertiesService.create(chainId, dto);
+    await this.auditLogService.record({
+      userId: request.user!.id,
+      action: 'CREATE_PROPERTY',
+      entityType: 'Property',
+      entityId: property.id,
+      after: property,
+    });
+    return property;
   }
 
   @Get('properties/:id')
-  findOne(@Param('id') id: string, @Req() request: RequestWithAccess) {
-    // TODO: replace with @Roles() guard once FR-11 is implemented
-    assertHasAccess(request, 'property', id);
+  @ResourceScope('property', 'id')
+  findOne(@Param('id') id: string) {
     return this.propertiesService.findById(id);
   }
 
   @Patch('properties/:id')
-  update(
+  @Roles('CHAIN_OWNER', 'PROPERTY_MANAGER')
+  @ResourceScope('property', 'id')
+  async update(
     @Param('id') id: string,
     @Body() dto: UpdatePropertyDto,
     @Req() request: RequestWithAccess,
   ) {
-    // CHAIN_OWNER (any property in their chain) or PROPERTY_MANAGER (their
-    // own property only, via roleForProperty) — spec: FR-00 Business Logic.
-    // TODO: replace with @Roles() guard once FR-11 is implemented
-    assertEffectiveRole(request, 'property', id, ['CHAIN_OWNER', 'PROPERTY_MANAGER']);
-    return this.propertiesService.update(id, dto);
+    const before = await this.propertiesService.findById(id);
+    const after = await this.propertiesService.update(id, dto);
+    await this.auditLogService.record({
+      userId: request.user!.id,
+      action: 'UPDATE_PROPERTY',
+      entityType: 'Property',
+      entityId: id,
+      before,
+      after,
+    });
+    return after;
   }
 }

@@ -29,6 +29,7 @@ function buildService(grants: UserAccess[]) {
     findByUserId: jest.fn().mockResolvedValue(grants),
     create: jest.fn(),
     findUserIdsByScope: jest.fn().mockResolvedValue([]),
+    remove: jest.fn(),
   };
   const propertyRepository: Partial<PropertyRepository> = {
     findIdsByChainId: jest.fn((chainId: string) =>

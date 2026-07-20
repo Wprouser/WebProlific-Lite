@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { RbacModule } from '../rbac/rbac.module';
 import { ChainsController } from './controllers/chains.controller';
 import { PropertiesController } from './controllers/properties.controller';
 import { OutletsController } from './controllers/outlets.controller';
@@ -19,6 +20,7 @@ import { PrismaOutletRepository } from './repositories/prisma/prisma-outlet.repo
 import { PrismaUserAccessRepository } from './repositories/prisma/prisma-user-access.repository';
 
 @Module({
+  imports: [RbacModule],
   controllers: [ChainsController, PropertiesController, OutletsController],
   providers: [
     ChainsService,

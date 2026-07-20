@@ -16,6 +16,9 @@ import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { ResetPasswordDto } from '../dto/reset-password.dto';
 import { SetTwoFactorPolicyDto } from '../dto/set-two-factor-policy.dto';
 import { RequestWithAccess } from '../../tenancy/types/request-with-access';
+import { Roles } from '../../rbac/decorators/roles.decorator';
+import { ResourceScope } from '../../rbac/decorators/resource-scope.decorator';
+import { AuditLogService } from '../../rbac/services/audit-log.service';
 
 const FIFTEEN_MIN_MS = 15 * 60 * 1000;
 
@@ -24,6 +27,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly twoFactorService: TwoFactorService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   @Public()
@@ -95,8 +99,18 @@ export class AuthController {
   }
 
   @Patch('2fa/policy')
-  setPolicy(@Req() request: RequestWithAccess, @Body() dto: SetTwoFactorPolicyDto) {
-    return this.twoFactorService.setPolicy(request, dto);
+  @Roles('CHAIN_OWNER')
+  @ResourceScope('chain', 'body.chainId')
+  async setPolicy(@Req() request: RequestWithAccess, @Body() dto: SetTwoFactorPolicyDto) {
+    const result = await this.twoFactorService.setPolicy(dto);
+    await this.auditLogService.record({
+      userId: request.user!.id,
+      action: 'SET_TWO_FACTOR_POLICY',
+      entityType: 'Chain',
+      entityId: dto.chainId,
+      after: { enforcedByPolicy: dto.enforcedByPolicy, affectedUsers: result.affectedUsers },
+    });
+    return result;
   }
 
   @Public()

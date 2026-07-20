@@ -55,6 +55,7 @@ describe('Auth & 2FA (FR-13) e2e', () => {
   });
 
   afterEach(async () => {
+    await prisma.auditLog.deleteMany(); // FR-11: the 2fa/policy endpoint now writes these
     await prisma.twoFactorBackupCode.deleteMany();
     await prisma.twoFactorChallenge.deleteMany();
     await prisma.trustedDevice.deleteMany();

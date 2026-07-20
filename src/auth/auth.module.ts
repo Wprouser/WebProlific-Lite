@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { TenancyModule } from '../tenancy/tenancy.module';
+import { RbacModule } from '../rbac/rbac.module';
 import { AuthController } from './controllers/auth.controller';
 import { AuthService } from './services/auth.service';
 import { TwoFactorService } from './services/two-factor.service';
@@ -33,6 +34,7 @@ import { PrismaPasswordResetTokenRepository } from './repositories/prisma/prisma
   imports: [
     ConfigModule,
     TenancyModule,
+    RbacModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -60,6 +62,14 @@ import { PrismaPasswordResetTokenRepository } from './repositories/prisma/prisma
     { provide: REFRESH_TOKEN_REPOSITORY, useClass: PrismaRefreshTokenRepository },
     { provide: PASSWORD_RESET_TOKEN_REPOSITORY, useClass: PrismaPasswordResetTokenRepository },
   ],
-  exports: [TokenService, JwtAuthGuard, USER_REPOSITORY],
+  exports: [
+    AuthService,
+    TwoFactorService,
+    TokenService,
+    PasswordService,
+    JwtAuthGuard,
+    USER_REPOSITORY,
+    OTP_DISPATCHER,
+  ],
 })
 export class AuthModule {}

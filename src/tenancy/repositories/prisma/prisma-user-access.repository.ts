@@ -39,4 +39,8 @@ export class PrismaUserAccessRepository implements UserAccessRepository {
     });
     return rows.map((r) => r.userId);
   }
+
+  async remove(id: string): Promise<void> {
+    await this.prisma.userAccess.delete({ where: { id } });
+  }
 }

@@ -81,7 +81,9 @@ model User {
   id                  String               @id @default(uuid())
   email               String               @unique
   phone               String?
-  passwordHash        String
+  // Nullable: FR-14's invite flow creates a User row with isActive=false and
+  // no password yet — it's only set once the invite is accepted.
+  passwordHash        String?
   preferredLanguage   String               @default("en") // 'en' | 'ar'
   preferredCurrency   String               @default("SAR")
   isActive            Boolean              @default(true)
@@ -94,6 +96,8 @@ model User {
   passwordResets      PasswordResetToken[]
   trustedDevices      TrustedDevice[]
   twoFactorChallenges TwoFactorChallenge[]
+  inviteTokens        InviteToken[]
+  auditLogs           AuditLog[]
 }
 
 model TwoFactorAuth {
@@ -163,6 +167,45 @@ model PasswordResetToken {
   tokenHash String
   expiresAt DateTime
   usedAt    DateTime?
+
+  @@index([userId])
+}
+
+// FR-11: Role-Based Access Control
+// "Every mutating endpoint must write an AuditLog entry" — distinct from
+// FR-18's later, unified ActivityLog/TransactionLog (which layers on top of
+// this, not replaces it — see the Technical Spec's FR-18 intro).
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String
+  entityType String
+  entityId   String
+  outletId   String? // not every audited action is outlet-scoped (e.g. a chain-level change)
+  // Structured before/after snapshots — String (NVARCHAR(MAX)) per the SQL
+  // Server compatibility note (no native Json column type); JSON.stringify/
+  // parse happens at the repository boundary.
+  before     String?
+  after      String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+}
+
+// FR-14: User Management
+// Same shape as PasswordResetToken — reused deliberately (see implementation
+// plan) over a stateless signed JWT, since a resend/accept needs to be able
+// to invalidate the previous token, which a stateless JWT can't do.
+model InviteToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([userId])
 }

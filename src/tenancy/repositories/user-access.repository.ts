@@ -13,4 +13,6 @@ export interface UserAccessRepository {
   create(data: CreateUserAccessInput): Promise<UserAccess>;
   /** Distinct userIds holding any grant at the given scope type over any of the given scope ids. */
   findUserIdsByScope(scopeType: ScopeType, scopeIds: string[]): Promise<string[]>;
+  /** FR-14: removes a single grant (part of PATCH /users/:id/access). */
+  remove(id: string): Promise<void>;
 }
