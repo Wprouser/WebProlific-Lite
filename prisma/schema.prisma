@@ -191,6 +191,11 @@ model AuditLog {
   // parse happens at the repository boundary.
   before     String?
   after      String?
+  // FR-02: null for ordinary entries. 'HIGH' when a manager force-overrides
+  // a stock-out that would otherwise take an item negative — the only
+  // place the spec mentions AuditLog severity, so deliberately not a
+  // general-purpose enum (see FR-02's Validation Rules).
+  severity   String?
   createdAt  DateTime @default(now())
 
   @@index([userId])
@@ -325,6 +330,7 @@ model Item {
   isActive          Boolean  @default(true)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  stockTransactions StockTransaction[]
 
   @@index([outletId, isActive])
   @@index([categoryId])
@@ -338,4 +344,29 @@ model Category {
   items    Item[]
 
   @@unique([name, outletId])
+}
+
+// FR-02: Stock-In / Stock-Out Transactions — the ledger every later module
+// (GRN, POS auto-deduction, transfers, wastage) writes stock movements
+// through. Immutable: no update/delete endpoint is ever exposed for this
+// table — corrections are new adjustment rows, never edits.
+// TransactionType is a String column, not a Prisma `enum` block — see the
+// header note above; enforced via src/stock-transactions/constants/enums.ts.
+model StockTransaction {
+  id            String   @id @default(uuid())
+  outletId      String
+  itemId        String
+  item          Item     @relation(fields: [itemId], references: [id])
+  type          String // TransactionType: PURCHASE_IN | OPENING_BALANCE | TRANSFER_IN | ADJUSTMENT_IN | USAGE_OUT | WASTAGE_OUT | TRANSFER_OUT | ADJUSTMENT_OUT
+  quantity      Decimal  @db.Decimal(10, 3) // always positive; direction implied by type
+  balanceAfter  Decimal  @db.Decimal(10, 3) // running balance snapshot, immutable
+  referenceType String? // 'PO' | 'GRN' | 'TRANSFER' | 'MANUAL'
+  referenceId   String?
+  reasonCode    String? // required for WASTAGE_OUT: 'EXPIRED' | 'DAMAGED' | 'SPILLED' | 'OVER_PREPARED'
+  photoUrl      String?
+  performedById String
+  createdAt     DateTime @default(now())
+
+  @@index([itemId, createdAt])
+  @@index([outletId, type])
 }

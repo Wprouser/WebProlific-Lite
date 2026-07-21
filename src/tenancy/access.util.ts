@@ -1,18 +1,19 @@
 import { ForbiddenException } from '@nestjs/common';
-import { RequestWithAccess } from '../tenancy/types/request-with-access';
-import { Role } from '../tenancy/constants/enums';
+import { RequestWithAccess } from './types/request-with-access';
+import { Role } from './constants/enums';
 
 /**
- * FR-01's endpoints are flat (`/items/:id`, not nested under
- * `/outlets/:outletId/items/:id`), so an item's outletId can't be resolved
- * from a route param the way `@ResourceScope` expects — it has to be
- * looked up first, from the loaded entity (update/delete/detail) or the
- * request body (create). This runs the same per-resource role check
+ * For endpoints whose routes are flat (`/items/:id`, `/stock-transactions`,
+ * not nested under `/outlets/:outletId/...`), an outletId can't be resolved
+ * from a route param the way `@ResourceScope` expects — it has to be looked
+ * up first, from the loaded entity (update/delete/detail) or the request
+ * body (create). This runs the same per-resource role check
  * `RolesGuard`/`@ResourceScope` do (`effectiveAccess.roleForOutlet`), just
  * called from the service once the outletId is known, instead of resolved
  * from route metadata. Not an ad-hoc role check — same resolved-access
  * primitive, just invoked from a different place out of structural
- * necessity.
+ * necessity. Originally FR-01-only; moved here (from items/) when FR-02
+ * needed the identical pattern, to avoid a second copy.
  */
 export function assertOutletAccess(request: RequestWithAccess, outletId: string, allowedRoles?: Role[]): void {
   const role = request.effectiveAccess?.roleForOutlet(outletId);

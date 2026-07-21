@@ -7,5 +7,6 @@ export interface AuditLog {
   outletId: string | null;
   before: string | null;
   after: string | null;
+  severity: string | null;
   createdAt: Date;
 }

@@ -5,7 +5,7 @@ import { Category } from '../domain/category.entity';
 import { CreateCategoryDto } from '../dto/create-category.dto';
 import { QueryCategoriesDto } from '../dto/query-categories.dto';
 import { RequestWithAccess } from '../../tenancy/types/request-with-access';
-import { assertOutletAccess } from '../access.util';
+import { assertOutletAccess } from '../../tenancy/access.util';
 
 const MUTATE_ROLES = ['CHAIN_OWNER', 'PROPERTY_MANAGER', 'OUTLET_MANAGER'] as const;
 

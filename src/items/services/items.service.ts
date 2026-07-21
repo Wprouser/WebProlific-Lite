@@ -6,7 +6,7 @@ import { CreateItemDto } from '../dto/create-item.dto';
 import { UpdateItemDto } from '../dto/update-item.dto';
 import { QueryItemsDto } from '../dto/query-items.dto';
 import { RequestWithAccess } from '../../tenancy/types/request-with-access';
-import { assertOutletAccess } from '../access.util';
+import { assertOutletAccess } from '../../tenancy/access.util';
 
 const MUTATE_ROLES = ['CHAIN_OWNER', 'PROPERTY_MANAGER', 'OUTLET_MANAGER'] as const;
 

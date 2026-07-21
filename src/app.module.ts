@@ -9,6 +9,7 @@ import { RbacModule } from './rbac/rbac.module';
 import { UsersModule } from './users/users.module';
 import { ActivityLogModule } from './activity-log/activity-log.module';
 import { ItemsModule } from './items/items.module';
+import { StockTransactionsModule } from './stock-transactions/stock-transactions.module';
 import { ScopeResolutionGuard } from './tenancy/guards/scope-resolution.guard';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './rbac/guards/roles.guard';
@@ -28,6 +29,7 @@ import { FieldRestrictionInterceptor } from './rbac/interceptors/field-restricti
     UsersModule,
     ActivityLogModule,
     ItemsModule,
+    StockTransactionsModule,
   ],
   providers: [
     // Order matters: JwtAuthGuard populates request.user, ScopeResolutionGuard

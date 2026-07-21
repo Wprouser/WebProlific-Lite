@@ -22,5 +22,8 @@ import { PrismaCategoryRepository } from './repositories/prisma/prisma-category.
     { provide: ITEM_REPOSITORY, useClass: PrismaItemRepository },
     { provide: CATEGORY_REPOSITORY, useClass: PrismaCategoryRepository },
   ],
+  // ITEM_REPOSITORY: FR-02's StockTransactionsService needs an item's
+  // outletId/currentStock — reuses this rather than a second repository.
+  exports: [ITEM_REPOSITORY],
 })
 export class ItemsModule {}

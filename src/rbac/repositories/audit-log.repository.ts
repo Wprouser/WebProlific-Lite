@@ -8,6 +8,7 @@ export interface CreateAuditLogInput {
   outletId?: string;
   before?: string;
   after?: string;
+  severity?: string;
 }
 
 export interface AuditLogRepository {

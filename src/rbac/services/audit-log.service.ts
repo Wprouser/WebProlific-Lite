@@ -3,7 +3,7 @@ import { AuditLogRepository } from '../repositories/audit-log.repository';
 import { AUDIT_LOG_REPOSITORY } from '../repositories/tokens';
 import { AuditLog } from '../domain/audit-log.entity';
 import { ActivityBus } from '../../activity-log/services/activity-bus.service';
-import { ActivityCategory, Operation } from '../../activity-log/constants/enums';
+import { ActivityCategory, EntityCategory, Operation } from '../../activity-log/constants/enums';
 import { EntityChangedEvent, TransactionLogEntryInput } from '../../activity-log/events/entity-changed.event';
 import { computeFieldDiffs, serializeValue } from '../../activity-log/util/compute-field-diffs';
 
@@ -15,6 +15,9 @@ export interface RecordAuditLogInput {
   outletId?: string;
   before?: unknown;
   after?: unknown;
+  // FR-02: 'HIGH' when a manager force-overrides a would-go-negative
+  // stock-out; undefined for every other action. See AuditLog.severity.
+  severity?: string;
 }
 
 // FR-18: actions whose ActivityCategory doesn't follow the default
@@ -28,10 +31,21 @@ function inferCategory(action: string, entityType: string): ActivityCategory {
   if (ACTION_CATEGORY_OVERRIDES[action]) return ACTION_CATEGORY_OVERRIDES[action]!;
   if (entityType === 'User') return 'USER_MGMT';
   if (entityType === 'Item' || entityType === 'Category') return 'ITEM';
+  if (entityType === 'StockTransaction') return 'STOCK';
   // Chain/Property/Outlet (FR-00 org-structure changes) — the spec's
   // ActivityCategory enum has no dedicated org/tenancy bucket, so these
   // fall under SETTINGS as the closest fit (flagged in the FR-18 plan).
   return 'SETTINGS';
+}
+
+// FR-18 schema comment: "MASTER_DATA: Item, Category, Supplier, Recipe,
+// TaxRate, Currency, User, Outlet/Property/Chain settings. TRANSACTIONAL:
+// StockTransaction, PurchaseOrder, GRN, Transfer, Sale." — anything not
+// explicitly transactional defaults to MASTER_DATA.
+const TRANSACTIONAL_ENTITY_TYPES = new Set(['StockTransaction', 'PurchaseOrder', 'GRN', 'Transfer', 'Sale']);
+
+function inferEntityCategory(entityType: string): EntityCategory {
+  return TRANSACTIONAL_ENTITY_TYPES.has(entityType) ? 'TRANSACTIONAL' : 'MASTER_DATA';
 }
 
 // FR-00 entity types where the AuditLog entityId directly *is* the
@@ -100,7 +114,7 @@ function buildEntityChange(input: RecordAuditLogInput): EntityChangedEvent | und
     outletId,
     propertyId,
     chainId,
-    entityCategory: 'MASTER_DATA',
+    entityCategory: inferEntityCategory(input.entityType),
     entityType: input.entityType,
     entityId: input.entityId,
     operation,
@@ -135,6 +149,7 @@ export class AuditLogService {
       outletId: input.outletId,
       before: input.before === undefined ? undefined : JSON.stringify(input.before),
       after: input.after === undefined ? undefined : JSON.stringify(input.after),
+      severity: input.severity,
     });
 
     await this.activityBus.record({
