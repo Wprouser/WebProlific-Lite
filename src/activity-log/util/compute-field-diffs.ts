@@ -1,11 +1,22 @@
 /**
  * FR-18 (revised): "emit one TransactionLog row per changed field" — a
  * shallow, top-level diff between an entity's before/after state. Relation
- * arrays (e.g. a Property's `outlets`) and known-sensitive fields aren't
- * meaningful as a single "field changed" row, so they're excluded rather
- * than diffed naively.
+ * arrays (e.g. a Property's `outlets`), known-sensitive fields, and
+ * bookkeeping timestamps that change as a side effect of ANY update (e.g.
+ * Prisma's `@updatedAt`) aren't meaningful as their own "field changed"
+ * row, so they're excluded rather than diffed naively — found via FR-01's
+ * e2e suite, where a plain rename produced a spurious extra
+ * `updatedAt`-changed row alongside the real one.
  */
-const EXCLUDED_FIELDS = new Set(['id', 'passwordHash', 'outlets', 'properties', 'userAccesses']);
+const EXCLUDED_FIELDS = new Set([
+  'id',
+  'passwordHash',
+  'outlets',
+  'properties',
+  'userAccesses',
+  'createdAt',
+  'updatedAt',
+]);
 
 export interface FieldDiff {
   fieldName: string;

@@ -27,6 +27,7 @@ const ACTION_CATEGORY_OVERRIDES: Partial<Record<string, ActivityCategory>> = {
 function inferCategory(action: string, entityType: string): ActivityCategory {
   if (ACTION_CATEGORY_OVERRIDES[action]) return ACTION_CATEGORY_OVERRIDES[action]!;
   if (entityType === 'User') return 'USER_MGMT';
+  if (entityType === 'Item' || entityType === 'Category') return 'ITEM';
   // Chain/Property/Outlet (FR-00 org-structure changes) — the spec's
   // ActivityCategory enum has no dedicated org/tenancy bucket, so these
   // fall under SETTINGS as the closest fit (flagged in the FR-18 plan).

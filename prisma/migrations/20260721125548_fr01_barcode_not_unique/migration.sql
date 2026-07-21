@@ -1,0 +1,22 @@
+BEGIN TRY
+
+BEGIN TRAN;
+
+-- DropIndex
+ALTER TABLE [dbo].[Item] DROP CONSTRAINT [Item_barcode_key];
+
+-- CreateIndex
+CREATE NONCLUSTERED INDEX [Item_barcode_idx] ON [dbo].[Item]([barcode]);
+
+COMMIT TRAN;
+
+END TRY
+BEGIN CATCH
+
+IF @@TRANCOUNT > 0
+BEGIN
+    ROLLBACK TRAN;
+END;
+THROW
+
+END CATCH

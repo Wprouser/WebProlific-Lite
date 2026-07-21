@@ -150,5 +150,78 @@
       "noItemsYetDesc": "Add your first item to start tracking stock.",
       "addItem": "Add item"
     }
+  },
+  "items": {
+    "title": "Items",
+    "subtitle": "Manage your outlet's item master and categories",
+    "addItem": "Add item",
+    "manageCategories": "Manage categories",
+    "searchPlaceholder": "Search by name or SKU…",
+    "filters": {
+      "allCategories": "All categories",
+      "allStatus": "All statuses",
+      "active": "Active",
+      "inactive": "Inactive",
+      "belowMinStock": "Below min stock only"
+    },
+    "table": {
+      "name": "Item",
+      "sku": "SKU",
+      "category": "Category",
+      "stock": "Stock",
+      "unit": "Unit",
+      "costPrice": "Cost price",
+      "status": "Status"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "lowStock": "Low stock"
+    },
+    "empty": {
+      "title": "No items match your filters",
+      "titleNoItems": "No items yet",
+      "description": "Try adjusting your search or filters.",
+      "descriptionNoItems": "Add your first item to start tracking stock.",
+      "action": "Add item"
+    },
+    "form": {
+      "createTitle": "Add item",
+      "editTitle": "Edit item",
+      "name": "Name",
+      "namePlaceholder": "e.g. Basmati Rice",
+      "category": "Category",
+      "categoryPlaceholder": "Select a category",
+      "sku": "SKU",
+      "skuPlaceholder": "e.g. RICE-BAS-001",
+      "barcode": "Barcode",
+      "barcodePlaceholder": "Optional",
+      "unit": "Unit",
+      "minStock": "Min stock",
+      "maxStock": "Max stock",
+      "costPrice": "Cost price",
+      "shelfLifeDays": "Shelf life (days)",
+      "storageLocation": "Storage location",
+      "storageLocationPlaceholder": "Optional",
+      "cancel": "Cancel",
+      "save": "Save item",
+      "saving": "Saving…",
+      "errorMinMax": "Min stock must be less than max stock"
+    },
+    "categoryManager": {
+      "title": "Manage categories",
+      "description": "Categories help organize items in the list and reports.",
+      "namePlaceholder": "New category name",
+      "add": "Add",
+      "empty": "No categories yet"
+    },
+    "units": {
+      "KG": "Kilogram (KG)",
+      "LITRE": "Litre (L)",
+      "PIECE": "Piece",
+      "BOX": "Box",
+      "GRAM": "Gram (g)",
+      "ML": "Millilitre (ml)"
+    }
   }
 }

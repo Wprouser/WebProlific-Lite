@@ -81,7 +81,9 @@ export class PrismaTransactionLogRepository implements TransactionLogRepository 
       ...row,
       entityCategory: row.entityCategory as EntityCategory,
       operation: row.operation as Operation,
-      valueAmount: row.valueAmount === null ? null : row.valueAmount.toString(),
+      // .toFixed(2), not .toString() — see PrismaItemRepository's toDomain
+      // for why (Decimal.toString() drops trailing zeros).
+      valueAmount: row.valueAmount === null ? null : row.valueAmount.toFixed(2),
     };
   }
 }

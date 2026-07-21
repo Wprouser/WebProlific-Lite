@@ -11,8 +11,12 @@ import {
 function toDomain(outlet: PrismaOutlet): Outlet {
   return {
     ...outlet,
+    // .toFixed(2), not .toString() — Decimal.toString() drops trailing
+    // zeros (85.50 -> "85.5"), mismatching the DECIMAL(12,2) column and
+    // CLAUDE.md's "all amounts: Decimal(12,2)" fixed-precision contract.
+    // Found while fixing the identical bug in FR-01's Item repository.
     poApprovalThreshold: outlet.poApprovalThreshold
-      ? outlet.poApprovalThreshold.toString()
+      ? outlet.poApprovalThreshold.toFixed(2)
       : null,
   };
 }

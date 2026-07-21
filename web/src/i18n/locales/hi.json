@@ -150,5 +150,78 @@
       "noItemsYetDesc": "स्टॉक ट्रैक करना शुरू करने के लिए अपना पहला आइटम जोड़ें।",
       "addItem": "आइटम जोड़ें"
     }
+  },
+  "items": {
+    "title": "आइटम",
+    "subtitle": "अपने आउटलेट की आइटम सूची और श्रेणियां प्रबंधित करें",
+    "addItem": "आइटम जोड़ें",
+    "manageCategories": "श्रेणियां प्रबंधित करें",
+    "searchPlaceholder": "नाम या SKU से खोजें…",
+    "filters": {
+      "allCategories": "सभी श्रेणियां",
+      "allStatus": "सभी स्थितियां",
+      "active": "सक्रिय",
+      "inactive": "निष्क्रिय",
+      "belowMinStock": "केवल न्यूनतम स्टॉक से कम"
+    },
+    "table": {
+      "name": "आइटम",
+      "sku": "SKU",
+      "category": "श्रेणी",
+      "stock": "स्टॉक",
+      "unit": "इकाई",
+      "costPrice": "लागत मूल्य",
+      "status": "स्थिति"
+    },
+    "status": {
+      "active": "सक्रिय",
+      "inactive": "निष्क्रिय",
+      "lowStock": "कम स्टॉक"
+    },
+    "empty": {
+      "title": "आपके फ़िल्टर से कोई आइटम मेल नहीं खाता",
+      "titleNoItems": "अभी तक कोई आइटम नहीं",
+      "description": "अपनी खोज या फ़िल्टर समायोजित करने का प्रयास करें।",
+      "descriptionNoItems": "स्टॉक ट्रैक करना शुरू करने के लिए अपना पहला आइटम जोड़ें।",
+      "action": "आइटम जोड़ें"
+    },
+    "form": {
+      "createTitle": "आइटम जोड़ें",
+      "editTitle": "आइटम संपादित करें",
+      "name": "नाम",
+      "namePlaceholder": "उदा. बासमती चावल",
+      "category": "श्रेणी",
+      "categoryPlaceholder": "एक श्रेणी चुनें",
+      "sku": "SKU",
+      "skuPlaceholder": "उदा. RICE-BAS-001",
+      "barcode": "बारकोड",
+      "barcodePlaceholder": "वैकल्पिक",
+      "unit": "इकाई",
+      "minStock": "न्यूनतम स्टॉक",
+      "maxStock": "अधिकतम स्टॉक",
+      "costPrice": "लागत मूल्य",
+      "shelfLifeDays": "शेल्फ लाइफ (दिन)",
+      "storageLocation": "भंडारण स्थान",
+      "storageLocationPlaceholder": "वैकल्पिक",
+      "cancel": "रद्द करें",
+      "save": "आइटम सहेजें",
+      "saving": "सहेजा जा रहा है…",
+      "errorMinMax": "न्यूनतम स्टॉक अधिकतम स्टॉक से कम होना चाहिए"
+    },
+    "categoryManager": {
+      "title": "श्रेणियां प्रबंधित करें",
+      "description": "श्रेणियां सूची और रिपोर्ट में आइटम व्यवस्थित करने में मदद करती हैं।",
+      "namePlaceholder": "नई श्रेणी का नाम",
+      "add": "जोड़ें",
+      "empty": "अभी तक कोई श्रेणी नहीं"
+    },
+    "units": {
+      "KG": "किलोग्राम (KG)",
+      "LITRE": "लीटर (L)",
+      "PIECE": "पीस",
+      "BOX": "बॉक्स",
+      "GRAM": "ग्राम (g)",
+      "ML": "मिलीलीटर (ml)"
+    }
   }
 }

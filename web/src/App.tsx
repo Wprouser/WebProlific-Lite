@@ -5,6 +5,7 @@ import { Dashboard } from '@/routes/Dashboard';
 import { Styleguide } from '@/routes/Styleguide';
 import { AlertList } from '@/routes/AlertList';
 import { Login } from '@/routes/Login';
+import { Items } from '@/routes/Items';
 
 export function App() {
   return (
@@ -16,6 +17,7 @@ export function App() {
 
           <Route element={<AppShell />}>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/items" element={<Items />} />
             <Route path="/styleguide" element={<Styleguide />} />
             <Route path="/alerts/:type" element={<AlertList />} />
           </Route>

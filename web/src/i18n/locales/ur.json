@@ -150,5 +150,78 @@
       "noItemsYetDesc": "اسٹاک ٹریک کرنا شروع کرنے کے لیے اپنی پہلی شے شامل کریں۔",
       "addItem": "شے شامل کریں"
     }
+  },
+  "items": {
+    "title": "اشیاء",
+    "subtitle": "اپنے آؤٹ لیٹ کی اشیاء کی فہرست اور زمرہ جات کا نظم کریں",
+    "addItem": "شے شامل کریں",
+    "manageCategories": "زمرہ جات کا نظم کریں",
+    "searchPlaceholder": "نام یا SKU سے تلاش کریں…",
+    "filters": {
+      "allCategories": "تمام زمرہ جات",
+      "allStatus": "تمام حیثیتیں",
+      "active": "فعال",
+      "inactive": "غیر فعال",
+      "belowMinStock": "صرف کم از کم اسٹاک سے کم"
+    },
+    "table": {
+      "name": "شے",
+      "sku": "SKU",
+      "category": "زمرہ",
+      "stock": "اسٹاک",
+      "unit": "اکائی",
+      "costPrice": "لاگت قیمت",
+      "status": "حیثیت"
+    },
+    "status": {
+      "active": "فعال",
+      "inactive": "غیر فعال",
+      "lowStock": "کم اسٹاک"
+    },
+    "empty": {
+      "title": "آپ کے فلٹرز سے کوئی شے مماثل نہیں",
+      "titleNoItems": "ابھی تک کوئی شے نہیں",
+      "description": "اپنی تلاش یا فلٹرز ایڈجسٹ کرنے کی کوشش کریں۔",
+      "descriptionNoItems": "اسٹاک ٹریک کرنا شروع کرنے کے لیے اپنی پہلی شے شامل کریں۔",
+      "action": "شے شامل کریں"
+    },
+    "form": {
+      "createTitle": "شے شامل کریں",
+      "editTitle": "شے میں ترمیم کریں",
+      "name": "نام",
+      "namePlaceholder": "مثلاً باسمتی چاول",
+      "category": "زمرہ",
+      "categoryPlaceholder": "ایک زمرہ منتخب کریں",
+      "sku": "SKU",
+      "skuPlaceholder": "مثلاً RICE-BAS-001",
+      "barcode": "بار کوڈ",
+      "barcodePlaceholder": "اختیاری",
+      "unit": "اکائی",
+      "minStock": "کم از کم اسٹاک",
+      "maxStock": "زیادہ سے زیادہ اسٹاک",
+      "costPrice": "لاگت قیمت",
+      "shelfLifeDays": "شیلف لائف (دن)",
+      "storageLocation": "اسٹوریج مقام",
+      "storageLocationPlaceholder": "اختیاری",
+      "cancel": "منسوخ کریں",
+      "save": "شے محفوظ کریں",
+      "saving": "محفوظ ہو رہا ہے…",
+      "errorMinMax": "کم از کم اسٹاک زیادہ سے زیادہ اسٹاک سے کم ہونا چاہیے"
+    },
+    "categoryManager": {
+      "title": "زمرہ جات کا نظم کریں",
+      "description": "زمرہ جات فہرست اور رپورٹس میں اشیاء کو منظم کرنے میں مدد کرتے ہیں۔",
+      "namePlaceholder": "نئے زمرے کا نام",
+      "add": "شامل کریں",
+      "empty": "ابھی تک کوئی زمرہ نہیں"
+    },
+    "units": {
+      "KG": "کلوگرام (KG)",
+      "LITRE": "لیٹر (L)",
+      "PIECE": "پیس",
+      "BOX": "بکس",
+      "GRAM": "گرام (g)",
+      "ML": "ملی لیٹر (ml)"
+    }
   }
 }

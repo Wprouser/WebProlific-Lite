@@ -55,6 +55,7 @@ model Outlet {
   baseCurrency        String   @default("SAR")
   poApprovalThreshold Decimal? @db.Decimal(12, 2)
   isActive            Boolean  @default(true)
+  items               Item[]
 
   @@index([propertyId])
   @@index([chainId])
@@ -290,4 +291,51 @@ model TransactionLog {
   @@index([chainId, createdAt])
   @@index([entityType, entityId])
   @@index([entityCategory, createdAt])
+}
+
+// FR-01: Item Master Management
+// Unit is a String column, not a Prisma `enum` block — see the header note
+// above; enforced via src/items/constants/enums.ts.
+model Item {
+  id                String   @id @default(uuid())
+  outletId          String
+  outlet            Outlet   @relation(fields: [outletId], references: [id])
+  name              String
+  categoryId        String
+  category          Category @relation(fields: [categoryId], references: [id])
+  sku               String   @unique
+  // Deliberately not @unique, unlike sku — SQL Server's default unique
+  // index treats every NULL as equal (unlike Postgres, where NULL != NULL
+  // for uniqueness purposes), so a plain @unique here would reject a
+  // second item with no barcode at all. Uniqueness is still enforced when
+  // a barcode IS provided, via ItemsService's findByBarcode check.
+  barcode           String?
+  unit              String // Unit: KG | LITRE | PIECE | BOX | GRAM | ML
+  minStock          Decimal  @db.Decimal(10, 3)
+  maxStock          Decimal  @db.Decimal(10, 3)
+  // Denormalized, updated only by FR-02's Stock Transaction service — never
+  // written directly by this module's own create/update endpoints.
+  currentStock      Decimal  @default(0) @db.Decimal(10, 3)
+  shelfLifeDays     Int?
+  costPrice         Decimal  @db.Decimal(12, 2)
+  // No Supplier relation — FR-03 (Suppliers) isn't built yet, so this is a
+  // loose reference for now, same pattern as AuditLog's polymorphic ids.
+  defaultSupplierId String?
+  storageLocation   String?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([outletId, isActive])
+  @@index([categoryId])
+  @@index([barcode])
+}
+
+model Category {
+  id       String @id @default(uuid())
+  name     String
+  outletId String
+  items    Item[]
+
+  @@unique([name, outletId])
 }

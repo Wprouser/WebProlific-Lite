@@ -15,7 +15,7 @@ interface NavItem {
 
 export const navItems: NavItem[] = [
   { labelKey: 'dashboard', icon: LayoutDashboard, to: '/' },
-  { labelKey: 'items', icon: Package },
+  { labelKey: 'items', icon: Package, to: '/items' },
   { labelKey: 'stock', icon: ClipboardList },
   { labelKey: 'suppliers', icon: Truck },
   { labelKey: 'reports', icon: BarChart3 },

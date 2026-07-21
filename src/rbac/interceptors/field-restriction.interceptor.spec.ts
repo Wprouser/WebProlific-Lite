@@ -91,6 +91,44 @@ describe('FieldRestrictionInterceptor', () => {
     }
   });
 
+  it('AC (FR-01): resolves role per row for an array response with no @ResourceScope, using each row\'s own outletId', async () => {
+    const interceptor = buildInterceptor({ role: 'CHEF', fields: ['costPrice'] }, undefined);
+    // Same caller: CHEF at outlet A, OUTLET_MANAGER at outlet B — a plain
+    // flat effectiveRole would resolve to the higher-privilege role and
+    // leak costPrice for outlet A's rows too.
+    const access = {
+      roleForOutlet: jest.fn((outletId: string) => (outletId === 'oA' ? 'CHEF' : 'OUTLET_MANAGER')),
+    };
+    const context = buildContext({}, access);
+    const rows = [
+      { ...fixtureItem, id: 'item-a', outletId: 'oA' },
+      { ...fixtureItem, id: 'item-b', outletId: 'oB' },
+    ];
+
+    const result = (await firstValueFrom(
+      interceptor.intercept(context, { handle: () => of(rows) }),
+    )) as Record<string, unknown>[];
+
+    expect(result[0]!.costPrice).toBeUndefined(); // outlet A: CHEF — stripped
+    expect(result[1]!.costPrice).toBe(12.5); // outlet B: OUTLET_MANAGER — untouched
+  });
+
+  it('falls back to flat effectiveRole for array rows with no outletId field', async () => {
+    const interceptor = buildInterceptor({ role: 'CHEF', fields: ['costPrice'] }, undefined);
+    const context: ExecutionContext = {
+      getHandler: () => ({}) as never,
+      getClass: () => ({}) as never,
+      switchToHttp: () => ({ getRequest: () => ({ effectiveRole: 'CHEF' }) }) as never,
+    } as unknown as ExecutionContext;
+    const rows = [{ id: 'x1', costPrice: 5 }];
+
+    const result = (await firstValueFrom(
+      interceptor.intercept(context, { handle: () => of(rows) }),
+    )) as Record<string, unknown>[];
+
+    expect(result[0]!.costPrice).toBeUndefined();
+  });
+
   it('does not mutate the original response object', async () => {
     const interceptor = buildInterceptor(
       { role: 'CHEF', fields: ['costPrice'] },

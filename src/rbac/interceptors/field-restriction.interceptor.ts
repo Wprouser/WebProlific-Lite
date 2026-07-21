@@ -14,10 +14,14 @@ import { resolveRoleForScope, resolveScopeId } from '../resource-scope.util';
  * without it, falls back to the coarse `effectiveRole`.
  *
  * Resolves one role for the whole response — correct for single-resource
- * endpoints. A list endpoint whose items span multiple outlets with
- * different effective roles per item would need per-item resolution; no
- * such endpoint exists yet (FR-01 isn't built), so that's a real extension
- * to make when it does, not something to build speculatively now.
+ * endpoints. For a route with no `@ResourceScope` whose response is an
+ * array of objects each carrying their own `outletId` (FR-01's item list,
+ * which can span multiple outlets with a different effective role per
+ * outlet for the same caller), role is resolved **per row** instead —
+ * otherwise a caller who's CHEF at outlet A but a higher role elsewhere
+ * would see `costPrice` leak through for outlet A's rows just because
+ * their role is higher somewhere else. This was flagged as "a real
+ * extension to make when FR-01 lands" — this is that.
  */
 @Injectable()
 export class FieldRestrictionInterceptor implements NestInterceptor {
@@ -38,6 +42,9 @@ export class FieldRestrictionInterceptor implements NestInterceptor {
 
     return next.handle().pipe(
       map((data) => {
+        if (!scopeMeta && Array.isArray(data)) {
+          return data.map((row) => this.stripRow(row, meta, request));
+        }
         const role = scopeMeta
           ? this.resolveScopedRole(request, scopeMeta)
           : request.effectiveRole;
@@ -45,6 +52,18 @@ export class FieldRestrictionInterceptor implements NestInterceptor {
         return this.stripFields(data, meta.fields);
       }),
     );
+  }
+
+  private stripRow(row: unknown, meta: RestrictFieldsMeta, request: RequestWithAccess): unknown {
+    const outletId = this.rowOutletId(row);
+    const role = outletId ? resolveRoleForScope(request, 'outlet', outletId) : request.effectiveRole;
+    if (role !== meta.role) return row;
+    return this.stripFields(row, meta.fields);
+  }
+
+  private rowOutletId(row: unknown): string | undefined {
+    const outletId = (row as Record<string, unknown> | null)?.outletId;
+    return typeof outletId === 'string' ? outletId : undefined;
   }
 
   private resolveScopedRole(request: RequestWithAccess, scopeMeta: ResourceScopeMeta) {

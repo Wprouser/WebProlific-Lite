@@ -150,5 +150,78 @@
       "noItemsYetDesc": "أضف أول صنف لبدء تتبع المخزون.",
       "addItem": "إضافة صنف"
     }
+  },
+  "items": {
+    "title": "الأصناف",
+    "subtitle": "إدارة قائمة الأصناف والفئات لمنفذك",
+    "addItem": "إضافة صنف",
+    "manageCategories": "إدارة الفئات",
+    "searchPlaceholder": "ابحث بالاسم أو رمز الصنف…",
+    "filters": {
+      "allCategories": "جميع الفئات",
+      "allStatus": "جميع الحالات",
+      "active": "نشط",
+      "inactive": "غير نشط",
+      "belowMinStock": "أقل من الحد الأدنى فقط"
+    },
+    "table": {
+      "name": "الصنف",
+      "sku": "رمز الصنف",
+      "category": "الفئة",
+      "stock": "المخزون",
+      "unit": "الوحدة",
+      "costPrice": "سعر التكلفة",
+      "status": "الحالة"
+    },
+    "status": {
+      "active": "نشط",
+      "inactive": "غير نشط",
+      "lowStock": "مخزون منخفض"
+    },
+    "empty": {
+      "title": "لا توجد أصناف مطابقة لعوامل التصفية",
+      "titleNoItems": "لا توجد أصناف بعد",
+      "description": "حاول تعديل البحث أو عوامل التصفية.",
+      "descriptionNoItems": "أضف أول صنف لبدء تتبع المخزون.",
+      "action": "إضافة صنف"
+    },
+    "form": {
+      "createTitle": "إضافة صنف",
+      "editTitle": "تعديل الصنف",
+      "name": "الاسم",
+      "namePlaceholder": "مثال: أرز بسمتي",
+      "category": "الفئة",
+      "categoryPlaceholder": "اختر فئة",
+      "sku": "رمز الصنف",
+      "skuPlaceholder": "مثال: RICE-BAS-001",
+      "barcode": "الباركود",
+      "barcodePlaceholder": "اختياري",
+      "unit": "الوحدة",
+      "minStock": "الحد الأدنى للمخزون",
+      "maxStock": "الحد الأقصى للمخزون",
+      "costPrice": "سعر التكلفة",
+      "shelfLifeDays": "مدة الصلاحية (أيام)",
+      "storageLocation": "موقع التخزين",
+      "storageLocationPlaceholder": "اختياري",
+      "cancel": "إلغاء",
+      "save": "حفظ الصنف",
+      "saving": "جارٍ الحفظ…",
+      "errorMinMax": "يجب أن يكون الحد الأدنى للمخزون أقل من الحد الأقصى"
+    },
+    "categoryManager": {
+      "title": "إدارة الفئات",
+      "description": "تساعد الفئات في تنظيم الأصناف في القائمة والتقارير.",
+      "namePlaceholder": "اسم الفئة الجديدة",
+      "add": "إضافة",
+      "empty": "لا توجد فئات بعد"
+    },
+    "units": {
+      "KG": "كيلوغرام (KG)",
+      "LITRE": "لتر (L)",
+      "PIECE": "قطعة",
+      "BOX": "صندوق",
+      "GRAM": "غرام (g)",
+      "ML": "مليلتر (ml)"
+    }
   }
 }

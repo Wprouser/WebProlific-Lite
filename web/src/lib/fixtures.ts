@@ -89,6 +89,137 @@ export interface SearchResultFixture {
 /** Global Search index (FR-17 Global App Chrome) — scoped to
  * effectiveOutletIds in the real implementation; this fixture just
  * demonstrates grouped, type-ahead results. */
+export interface CategoryFixture {
+  id: string;
+  name: string;
+}
+
+/** FR-01: Item Master. Not wired to the real backend yet (see this file's
+ * header note) — the same "mock UI now, real API wiring is its own pass"
+ * scope every other screen in web/ has used so far. */
+export const mockCategories: CategoryFixture[] = [
+  { id: 'cat-1', name: 'Dry Goods' },
+  { id: 'cat-2', name: 'Produce' },
+  { id: 'cat-3', name: 'Oils & Condiments' },
+  { id: 'cat-4', name: 'Dairy' },
+];
+
+export interface ItemFixture {
+  id: string;
+  name: string;
+  categoryId: string;
+  sku: string;
+  barcode: string | null;
+  unit: 'KG' | 'LITRE' | 'PIECE' | 'BOX' | 'GRAM' | 'ML';
+  minStock: string;
+  maxStock: string;
+  currentStock: string;
+  costPrice: string;
+  storageLocation: string | null;
+  isActive: boolean;
+}
+
+export const mockItems: ItemFixture[] = [
+  {
+    id: 'item-1',
+    name: 'Basmati Rice',
+    categoryId: 'cat-1',
+    sku: 'RICE-BAS-001',
+    barcode: '8901030123456',
+    unit: 'KG',
+    minStock: '10.000',
+    maxStock: '100.000',
+    currentStock: '42.000',
+    costPrice: '85.50',
+    storageLocation: 'Dry Store A',
+    isActive: true,
+  },
+  {
+    id: 'item-2',
+    name: 'All-Purpose Flour',
+    categoryId: 'cat-1',
+    sku: 'FLOUR-AP-001',
+    barcode: null,
+    unit: 'KG',
+    minStock: '15.000',
+    maxStock: '80.000',
+    currentStock: '9.500',
+    costPrice: '12.00',
+    storageLocation: 'Dry Store A',
+    isActive: true,
+  },
+  {
+    id: 'item-3',
+    name: 'Extra Virgin Olive Oil (5L)',
+    categoryId: 'cat-3',
+    sku: 'OIL-EVO-005',
+    barcode: '8901030198765',
+    unit: 'LITRE',
+    minStock: '5.000',
+    maxStock: '30.000',
+    currentStock: '3.000',
+    costPrice: '145.00',
+    storageLocation: 'Dry Store B',
+    isActive: true,
+  },
+  {
+    id: 'item-4',
+    name: 'Fresh Basil',
+    categoryId: 'cat-2',
+    sku: 'HERB-BAS-001',
+    barcode: null,
+    unit: 'BOX',
+    minStock: '2.000',
+    maxStock: '15.000',
+    currentStock: '0.000',
+    costPrice: '18.75',
+    storageLocation: 'Walk-in Chiller',
+    isActive: true,
+  },
+  {
+    id: 'item-5',
+    name: 'Roma Tomatoes',
+    categoryId: 'cat-2',
+    sku: 'VEG-TOM-001',
+    barcode: '8901030155512',
+    unit: 'KG',
+    minStock: '10.000',
+    maxStock: '60.000',
+    currentStock: '38.000',
+    costPrice: '9.20',
+    storageLocation: 'Walk-in Chiller',
+    isActive: true,
+  },
+  {
+    id: 'item-6',
+    name: 'Whole Milk',
+    categoryId: 'cat-4',
+    sku: 'DAIRY-MLK-001',
+    barcode: '8901030177789',
+    unit: 'LITRE',
+    minStock: '20.000',
+    maxStock: '100.000',
+    currentStock: '64.000',
+    costPrice: '6.50',
+    storageLocation: 'Walk-in Chiller',
+    isActive: true,
+  },
+  {
+    id: 'item-7',
+    name: 'Discontinued Sauce Mix',
+    categoryId: 'cat-3',
+    sku: 'SAUCE-DISC-001',
+    barcode: null,
+    unit: 'BOX',
+    minStock: '2.000',
+    maxStock: '10.000',
+    currentStock: '0.000',
+    costPrice: '22.00',
+    storageLocation: null,
+    isActive: false,
+  },
+];
+
 export const mockSearchIndex: SearchResultFixture[] = [
   { id: 'i1', type: 'Item', title: 'All-Purpose Flour', subtitle: 'Dry Goods · 42 kg on hand' },
   { id: 'i2', type: 'Item', title: 'Olive Oil (5L)', subtitle: 'Oils · 3 bottles on hand' },

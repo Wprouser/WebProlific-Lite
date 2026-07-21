@@ -41,4 +41,16 @@ describe('computeFieldDiffs', () => {
     expect(computeFieldDiffs(undefined, { name: 'A' })).toEqual([]);
     expect(computeFieldDiffs({ name: 'A' }, undefined)).toEqual([]);
   });
+
+  it("excludes createdAt/updatedAt — a plain rename shouldn't also report the auto-bumped timestamp as a changed field", () => {
+    const before = new Date('2026-01-01T00:00:00.000Z');
+    const after = new Date('2026-01-02T00:00:00.000Z');
+
+    const diffs = computeFieldDiffs(
+      { name: 'Rice', createdAt: before, updatedAt: before },
+      { name: 'Basmati Rice', createdAt: before, updatedAt: after },
+    );
+
+    expect(diffs).toEqual([{ fieldName: 'name', oldValue: 'Rice', newValue: 'Basmati Rice' }]);
+  });
 });
