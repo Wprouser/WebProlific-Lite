@@ -54,7 +54,21 @@
     "passwordPlaceholder": "••••••••",
     "forgotPassword": "هل نسيت كلمة المرور؟",
     "signIn": "تسجيل الدخول",
-    "signingIn": "جارٍ تسجيل الدخول…"
+    "signingIn": "جارٍ تسجيل الدخول…",
+    "invalidCredentials": "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
+    "genericError": "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
+    "enrollmentRequired": "يتطلب هذا الحساب إعداد المصادقة الثنائية، وهو غير مدعوم في هذا التطبيق بعد. يرجى التواصل مع مسؤول النظام.",
+    "twoFactor": {
+      "title": "أدخل رمز التحقق",
+      "subtitleWithDestination": "أرسلنا رمزًا إلى {{destination}}.",
+      "subtitle": "أدخل رمز التحقق الخاص بحسابك.",
+      "code": "رمز التحقق",
+      "codePlaceholder": "123456",
+      "verify": "تحقق",
+      "verifying": "جارٍ التحقق…",
+      "back": "رجوع",
+      "invalidCode": "رمز غير صحيح أو منتهي الصلاحية."
+    }
   },
   "contextSwitcher": {
     "ariaLabel": "سياق السلسلة والمنشأة والمنفذ",
@@ -157,6 +171,7 @@
     "addItem": "إضافة صنف",
     "manageCategories": "إدارة الفئات",
     "searchPlaceholder": "ابحث بالاسم أو رمز الصنف…",
+    "loadError": "تعذر تحميل الأصناف",
     "filters": {
       "allCategories": "جميع الفئات",
       "allStatus": "جميع الحالات",
@@ -206,7 +221,12 @@
       "cancel": "إلغاء",
       "save": "حفظ الصنف",
       "saving": "جارٍ الحفظ…",
-      "errorMinMax": "يجب أن يكون الحد الأدنى للمخزون أقل من الحد الأقصى"
+      "errorMinMax": "يجب أن يكون الحد الأدنى للمخزون أقل من الحد الأقصى",
+      "saveError": "تعذر الحفظ. يرجى المحاولة مرة أخرى.",
+      "deactivate": "إلغاء التفعيل",
+      "deactivating": "جارٍ إلغاء التفعيل…",
+      "confirmDeactivate": "هل تريد إلغاء تفعيل هذا الصنف؟",
+      "confirmYes": "نعم، إلغاء التفعيل"
     },
     "categoryManager": {
       "title": "إدارة الفئات",

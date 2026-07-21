@@ -32,6 +32,15 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  server: {
+    // Dev-only: lets the frontend call same-origin `/api/v1/...` paths
+    // without the backend needing CORS configured — that's a separate,
+    // more consequential decision (real origin whitelisting) for whenever
+    // this ships behind a real domain.
+    proxy: {
+      '/api': 'http://localhost:3000',
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,

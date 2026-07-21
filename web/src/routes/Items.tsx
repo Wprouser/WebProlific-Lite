@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Package, Plus, Search, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -10,22 +10,26 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { ResponsiveTable, type ResponsiveTableColumn } from '@/components/ui/ResponsiveTable';
 import { ItemFormModal } from '@/components/items/ItemFormModal';
 import { CategoryManagerModal } from '@/components/items/CategoryManagerModal';
-import { mockCategories, mockItems, type CategoryFixture, type ItemFixture } from '@/lib/fixtures';
+import { categoriesApi, itemsApi, type ApiCategory, type ApiItem } from '@/lib/items-api';
+import { getSession } from '@/lib/auth-store';
+import { ApiError } from '@/lib/api-client';
 
 type StatusFilter = 'active' | 'inactive' | 'all';
 
 /**
- * FR-01: Item Master list, plus create/edit and category management as
- * Modals off this screen. Mock-data-driven (see fixtures.ts) — the real
- * FR-01 backend exists (GET/POST/PATCH/DELETE /items,
- * GET/POST /items/categories) but wiring the frontend to it is a separate
- * pass, same scope decision every other screen in web/ has made so far.
+ * FR-01: Item Master list, plus create/edit/deactivate and category
+ * management as Modals off this screen. Wired to the real backend
+ * (GET/POST/PATCH/DELETE /items, GET/POST /items/categories) — mock UI
+ * phase is over for this screen.
  */
 export function Items() {
   const { t } = useTranslation();
+  const outletId = getSession()?.user.effectiveOutletIds[0];
+
   const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState<ItemFixture[]>([]);
-  const [categories, setCategories] = useState<CategoryFixture[]>(mockCategories);
+  const [error, setError] = useState<string | null>(null);
+  const [items, setItems] = useState<ApiItem[]>([]);
+  const [categories, setCategories] = useState<ApiCategory[]>([]);
 
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -33,58 +37,59 @@ export function Items() {
   const [belowMinOnly, setBelowMinOnly] = useState(false);
 
   const [formOpen, setFormOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<ItemFixture | null>(null);
+  const [editingItem, setEditingItem] = useState<ApiItem | null>(null);
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
 
-  useEffect(() => {
-    // Brief simulated load so the Skeleton state is genuinely exercised —
-    // FR-17: "every list/dashboard screen has a ... loading skeleton", not
-    // just an empty-state/error-state afterthought.
-    const id = window.setTimeout(() => {
-      setItems(mockItems);
+  const loadItems = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await itemsApi.list({
+        categoryId: categoryFilter || undefined,
+        isActive: statusFilter === 'all' ? undefined : statusFilter === 'active',
+        search: search.trim() || undefined,
+        belowMinStock: belowMinOnly,
+      });
+      setItems(result);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('items.loadError'));
+    } finally {
       setLoading(false);
-    }, 400);
+    }
+  }, [categoryFilter, statusFilter, search, belowMinOnly, t]);
+
+  // Debounced so free-text search doesn't fire a request per keystroke.
+  useEffect(() => {
+    const id = window.setTimeout(loadItems, 300);
     return () => window.clearTimeout(id);
+  }, [loadItems]);
+
+  useEffect(() => {
+    categoriesApi.list().then(setCategories).catch(() => setCategories([]));
   }, []);
 
   const categoryName = (categoryId: string) => categories.find((c) => c.id === categoryId)?.name ?? '—';
-
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return items.filter((item) => {
-      if (statusFilter === 'active' && !item.isActive) return false;
-      if (statusFilter === 'inactive' && item.isActive) return false;
-      if (categoryFilter && item.categoryId !== categoryFilter) return false;
-      // AC: GET /items?belowMinStock=true returns only items where
-      // currentStock < minStock — same rule, applied client-side here.
-      if (belowMinOnly && Number(item.currentStock) >= Number(item.minStock)) return false;
-      if (query && !item.name.toLowerCase().includes(query) && !item.sku.toLowerCase().includes(query)) {
-        return false;
-      }
-      return true;
-    });
-  }, [items, search, categoryFilter, statusFilter, belowMinOnly]);
 
   function openCreate() {
     setEditingItem(null);
     setFormOpen(true);
   }
 
-  function openEdit(item: ItemFixture) {
+  function openEdit(item: ApiItem) {
     setEditingItem(item);
     setFormOpen(true);
   }
 
-  function handleSave(item: ItemFixture) {
-    setItems((prev) => (prev.some((i) => i.id === item.id) ? prev.map((i) => (i.id === item.id ? item : i)) : [item, ...prev]));
+  function handleSaved() {
     setFormOpen(false);
+    loadItems();
   }
 
-  function handleCreateCategory(category: CategoryFixture) {
+  function handleCreateCategory(category: ApiCategory) {
     setCategories((prev) => [...prev, category]);
   }
 
-  const columns: ResponsiveTableColumn<ItemFixture>[] = [
+  const columns: ResponsiveTableColumn<ApiItem>[] = [
     {
       key: 'name',
       header: t('items.table.name'),
@@ -124,7 +129,7 @@ export function Items() {
     {
       key: 'costPrice',
       header: t('items.table.costPrice'),
-      render: (item) => item.costPrice,
+      render: (item) => item.costPrice ?? '—',
     },
     {
       key: 'status',
@@ -149,7 +154,7 @@ export function Items() {
             <Settings2 className="h-4 w-4" />
             {t('items.manageCategories')}
           </Button>
-          <Button onClick={openCreate}>
+          <Button onClick={openCreate} disabled={!outletId}>
             <Plus className="h-4 w-4" />
             {t('items.addItem')}
           </Button>
@@ -205,15 +210,22 @@ export function Items() {
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : error ? (
         <EmptyState
           icon={<Package className="h-7 w-7" />}
-          title={items.length === 0 ? t('items.empty.titleNoItems') : t('items.empty.title')}
-          description={items.length === 0 ? t('items.empty.descriptionNoItems') : t('items.empty.description')}
-          action={items.length === 0 ? <Button onClick={openCreate}>{t('items.empty.action')}</Button> : undefined}
+          title={t('items.loadError')}
+          description={error}
+          action={<Button onClick={loadItems}>{t('common.refresh')}</Button>}
+        />
+      ) : items.length === 0 ? (
+        <EmptyState
+          icon={<Package className="h-7 w-7" />}
+          title={t('items.empty.title')}
+          description={t('items.empty.description')}
+          action={<Button onClick={openCreate}>{t('items.empty.action')}</Button>}
         />
       ) : (
-        <ResponsiveTable columns={columns} data={filtered} getRowKey={(item) => item.id} />
+        <ResponsiveTable columns={columns} data={items} getRowKey={(item) => item.id} />
       )}
 
       <ItemFormModal
@@ -221,12 +233,14 @@ export function Items() {
         onOpenChange={setFormOpen}
         item={editingItem}
         categories={categories}
-        onSave={handleSave}
+        outletId={outletId}
+        onSaved={handleSaved}
       />
       <CategoryManagerModal
         open={categoryManagerOpen}
         onOpenChange={setCategoryManagerOpen}
         categories={categories}
+        outletId={outletId}
         onCreate={handleCreateCategory}
       />
     </div>

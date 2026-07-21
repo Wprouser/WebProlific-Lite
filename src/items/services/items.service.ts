@@ -39,17 +39,23 @@ export class ItemsService {
     return this.itemRepository.update(id, dto);
   }
 
-  /**
-   * Spec's business rule: block deactivation if an open (not Closed/
-   * Cancelled/Rejected) PurchaseOrder references this item. PurchaseOrder
-   * doesn't exist yet — FR-04 isn't built — so there's nothing to check
-   * against yet. Known gap, not a silent omission; revisit when FR-04
-   * lands.
-   */
   async softDelete(request: RequestWithAccess, id: string): Promise<Item> {
     const existing = await this.getOrThrow(id);
     assertOutletAccess(request, existing.outletId, [...MUTATE_ROLES]);
+    await this.assertNoOpenPurchaseOrders(id);
     return this.itemRepository.update(id, { isActive: false });
+  }
+
+  /**
+   * Spec's business rule: block deactivation if an open (not Closed/
+   * Cancelled/Rejected) PurchaseOrder references this item. PurchaseOrder
+   * doesn't exist yet — FR-04 isn't built — so this is a no-op today.
+   * Kept as its own method (rather than a comment) so the call site is
+   * already correct; implementing FR-04 should only mean filling this
+   * body in, not hunting for where the check belongs.
+   */
+  private async assertNoOpenPurchaseOrders(_itemId: string): Promise<void> {
+    return;
   }
 
   async list(request: RequestWithAccess, query: QueryItemsDto): Promise<Item[]> {

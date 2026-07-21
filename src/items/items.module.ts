@@ -4,6 +4,7 @@ import { CategoriesController } from './controllers/categories.controller';
 import { ItemsController } from './controllers/items.controller';
 import { CategoriesService } from './services/categories.service';
 import { ItemsService } from './services/items.service';
+import { DefaultCategoriesListener } from './listeners/default-categories.listener';
 import { ITEM_REPOSITORY, CATEGORY_REPOSITORY } from './repositories/tokens';
 import { PrismaItemRepository } from './repositories/prisma/prisma-item.repository';
 import { PrismaCategoryRepository } from './repositories/prisma/prisma-category.repository';
@@ -17,6 +18,7 @@ import { PrismaCategoryRepository } from './repositories/prisma/prisma-category.
   providers: [
     ItemsService,
     CategoriesService,
+    DefaultCategoriesListener,
     { provide: ITEM_REPOSITORY, useClass: PrismaItemRepository },
     { provide: CATEGORY_REPOSITORY, useClass: PrismaCategoryRepository },
   ],

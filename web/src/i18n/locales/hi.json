@@ -54,7 +54,21 @@
     "passwordPlaceholder": "••••••••",
     "forgotPassword": "पासवर्ड भूल गए?",
     "signIn": "साइन इन करें",
-    "signingIn": "साइन इन हो रहा है…"
+    "signingIn": "साइन इन हो रहा है…",
+    "invalidCredentials": "ईमेल या पासवर्ड गलत है।",
+    "genericError": "कुछ गड़बड़ हो गई। कृपया फिर से कोशिश करें।",
+    "enrollmentRequired": "इस खाते के लिए टू-फैक्टर ऑथेंटिकेशन सेटअप आवश्यक है, जो अभी इस ऐप में उपलब्ध नहीं है। कृपया अपने एडमिनिस्ट्रेटर से संपर्क करें।",
+    "twoFactor": {
+      "title": "सत्यापन कोड दर्ज करें",
+      "subtitleWithDestination": "हमने {{destination}} पर एक कोड भेजा है।",
+      "subtitle": "अपने खाते का सत्यापन कोड दर्ज करें।",
+      "code": "सत्यापन कोड",
+      "codePlaceholder": "123456",
+      "verify": "सत्यापित करें",
+      "verifying": "सत्यापित हो रहा है…",
+      "back": "वापस",
+      "invalidCode": "गलत या समाप्त हो चुका कोड।"
+    }
   },
   "contextSwitcher": {
     "ariaLabel": "चेन, प्रॉपर्टी और आउटलेट संदर्भ",
@@ -157,6 +171,7 @@
     "addItem": "आइटम जोड़ें",
     "manageCategories": "श्रेणियां प्रबंधित करें",
     "searchPlaceholder": "नाम या SKU से खोजें…",
+    "loadError": "आइटम लोड नहीं हो सके",
     "filters": {
       "allCategories": "सभी श्रेणियां",
       "allStatus": "सभी स्थितियां",
@@ -206,7 +221,12 @@
       "cancel": "रद्द करें",
       "save": "आइटम सहेजें",
       "saving": "सहेजा जा रहा है…",
-      "errorMinMax": "न्यूनतम स्टॉक अधिकतम स्टॉक से कम होना चाहिए"
+      "errorMinMax": "न्यूनतम स्टॉक अधिकतम स्टॉक से कम होना चाहिए",
+      "saveError": "सेव नहीं हो सका। कृपया फिर से कोशिश करें।",
+      "deactivate": "निष्क्रिय करें",
+      "deactivating": "निष्क्रिय हो रहा है…",
+      "confirmDeactivate": "इस आइटम को निष्क्रिय करें?",
+      "confirmYes": "हां, निष्क्रिय करें"
     },
     "categoryManager": {
       "title": "श्रेणियां प्रबंधित करें",

@@ -4,18 +4,20 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import type { CategoryFixture, ItemFixture } from '@/lib/fixtures';
+import { itemsApi, type ApiCategory, type ApiItem, type Unit } from '@/lib/items-api';
+import { ApiError } from '@/lib/api-client';
 
-const UNITS = ['KG', 'LITRE', 'PIECE', 'BOX', 'GRAM', 'ML'] as const;
-type UnitValue = (typeof UNITS)[number];
+const UNITS: Unit[] = ['KG', 'LITRE', 'PIECE', 'BOX', 'GRAM', 'ML'];
 
 export interface ItemFormModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** null = create; a fixture = edit that item. */
-  item: ItemFixture | null;
-  categories: CategoryFixture[];
-  onSave: (item: ItemFixture) => void;
+  /** null = create; an item = edit that item. */
+  item: ApiItem | null;
+  categories: ApiCategory[];
+  /** The outlet new items are created under — undefined if the session has no accessible outlet. */
+  outletId: string | undefined;
+  onSaved: () => void;
 }
 
 interface FormState {
@@ -23,7 +25,7 @@ interface FormState {
   categoryId: string;
   sku: string;
   barcode: string;
-  unit: UnitValue;
+  unit: Unit;
   minStock: string;
   maxStock: string;
   costPrice: string;
@@ -44,21 +46,19 @@ function emptyForm(defaultCategoryId: string): FormState {
   };
 }
 
-/**
- * FR-01's create/edit item form, as a Modal rather than a dedicated route —
- * keeps the user on the list, same pattern FR-17's Styleguide already
- * demonstrates. Mock-data only (see fixtures.ts): validates and calls
- * `onSave` with a fixture-shaped Item; no backend request yet.
- */
-export function ItemFormModal({ open, onOpenChange, item, categories, onSave }: ItemFormModalProps) {
+/** FR-01's create/edit item form, as a Modal rather than a dedicated route — keeps the user on the list. */
+export function ItemFormModal({ open, onOpenChange, item, categories, outletId, onSaved }: ItemFormModalProps) {
   const { t } = useTranslation();
   const [form, setForm] = useState<FormState>(() => emptyForm(categories[0]?.id ?? ''));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [confirmingDeactivate, setConfirmingDeactivate] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setError(null);
+    setConfirmingDeactivate(false);
     setForm(
       item
         ? {
@@ -69,42 +69,72 @@ export function ItemFormModal({ open, onOpenChange, item, categories, onSave }: 
             unit: item.unit,
             minStock: item.minStock,
             maxStock: item.maxStock,
-            costPrice: item.costPrice,
+            costPrice: item.costPrice ?? '',
             storageLocation: item.storageLocation ?? '',
           }
         : emptyForm(categories[0]?.id ?? ''),
     );
   }, [open, item, categories]);
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    // AC: cannot set minStock >= maxStock — same rule FR-01's backend
-    // enforces, checked client-side too so the error shows immediately.
+    // AC: cannot set minStock >= maxStock — checked client-side for
+    // immediate feedback; the server enforces this independently too.
     if (Number(form.minStock) >= Number(form.maxStock)) {
       setError(t('items.form.errorMinMax'));
       return;
     }
     setError(null);
     setSaving(true);
-    // Mock UI — no backend yet. Simulated round-trip so the "Saving…"
-    // state is genuinely exercised, not just decorative.
-    window.setTimeout(() => {
-      onSave({
-        id: item?.id ?? `item-${Date.now()}`,
-        name: form.name,
-        categoryId: form.categoryId,
-        sku: form.sku,
-        barcode: form.barcode.trim() || null,
-        unit: form.unit,
-        minStock: form.minStock,
-        maxStock: form.maxStock,
-        currentStock: item?.currentStock ?? '0.000',
-        costPrice: form.costPrice,
-        storageLocation: form.storageLocation.trim() || null,
-        isActive: item?.isActive ?? true,
-      });
+    try {
+      if (item) {
+        await itemsApi.update(item.id, {
+          name: form.name,
+          categoryId: form.categoryId,
+          sku: form.sku,
+          barcode: form.barcode.trim() || null,
+          unit: form.unit,
+          minStock: form.minStock,
+          maxStock: form.maxStock,
+          costPrice: form.costPrice,
+          storageLocation: form.storageLocation.trim() || null,
+        });
+      } else {
+        if (!outletId) return;
+        await itemsApi.create({
+          outletId,
+          name: form.name,
+          categoryId: form.categoryId,
+          sku: form.sku,
+          barcode: form.barcode.trim() || null,
+          unit: form.unit,
+          minStock: form.minStock,
+          maxStock: form.maxStock,
+          costPrice: form.costPrice,
+          storageLocation: form.storageLocation.trim() || null,
+        });
+      }
+      onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('items.form.saveError'));
+    } finally {
       setSaving(false);
-    }, 400);
+    }
+  }
+
+  async function handleDeactivate() {
+    if (!item) return;
+    setDeactivating(true);
+    setError(null);
+    try {
+      await itemsApi.deactivate(item.id);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('items.form.saveError'));
+      setConfirmingDeactivate(false);
+    } finally {
+      setDeactivating(false);
+    }
   }
 
   return (
@@ -160,7 +190,7 @@ export function ItemFormModal({ open, onOpenChange, item, categories, onSave }: 
 
         <div className="grid grid-cols-3 gap-4">
           <Field label={t('items.form.unit')}>
-            <Select value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value as UnitValue })}>
+            <Select value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value as Unit })}>
               {UNITS.map((u) => (
                 <option key={u} value={u}>
                   {t(`items.units.${u}`)}
@@ -212,13 +242,40 @@ export function ItemFormModal({ open, onOpenChange, item, categories, onSave }: 
 
         {error && <p className="text-sm text-danger">{error}</p>}
 
-        <div className="mt-2 flex justify-end gap-3">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            {t('items.form.cancel')}
-          </Button>
-          <Button type="submit" disabled={saving}>
-            {saving ? t('items.form.saving') : t('items.form.save')}
-          </Button>
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <div>
+            {item?.isActive &&
+              (confirmingDeactivate ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-foreground-muted">{t('items.form.confirmDeactivate')}</span>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="sm"
+                    disabled={deactivating}
+                    onClick={handleDeactivate}
+                  >
+                    {deactivating ? t('items.form.deactivating') : t('items.form.confirmYes')}
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmingDeactivate(false)}>
+                    {t('items.form.cancel')}
+                  </Button>
+                </div>
+              ) : (
+                <Button type="button" variant="outline" size="sm" onClick={() => setConfirmingDeactivate(true)}>
+                  {t('items.form.deactivate')}
+                </Button>
+              ))}
+          </div>
+
+          <div className="flex gap-3">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              {t('items.form.cancel')}
+            </Button>
+            <Button type="submit" disabled={saving || (!item && !outletId)}>
+              {saving ? t('items.form.saving') : t('items.form.save')}
+            </Button>
+          </div>
         </div>
       </form>
     </Modal>

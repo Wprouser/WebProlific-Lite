@@ -54,7 +54,21 @@
     "passwordPlaceholder": "••••••••",
     "forgotPassword": "پاس ورڈ بھول گئے؟",
     "signIn": "سائن ان کریں",
-    "signingIn": "سائن ان ہو رہا ہے…"
+    "signingIn": "سائن ان ہو رہا ہے…",
+    "invalidCredentials": "ای میل یا پاس ورڈ غلط ہے۔",
+    "genericError": "کچھ غلط ہو گیا۔ براہ کرم دوبارہ کوشش کریں۔",
+    "enrollmentRequired": "اس اکاؤنٹ کے لیے ٹو-فیکٹر توثیق کا سیٹ اپ درکار ہے، جو ابھی اس ایپ میں دستیاب نہیں ہے۔ براہ کرم اپنے ایڈمنسٹریٹر سے رابطہ کریں۔",
+    "twoFactor": {
+      "title": "تصدیقی کوڈ درج کریں",
+      "subtitleWithDestination": "ہم نے {{destination}} پر ایک کوڈ بھیجا ہے۔",
+      "subtitle": "اپنے اکاؤنٹ کا تصدیقی کوڈ درج کریں۔",
+      "code": "تصدیقی کوڈ",
+      "codePlaceholder": "123456",
+      "verify": "تصدیق کریں",
+      "verifying": "تصدیق ہو رہی ہے…",
+      "back": "واپس",
+      "invalidCode": "غلط یا میعاد ختم کوڈ۔"
+    }
   },
   "contextSwitcher": {
     "ariaLabel": "چین، پراپرٹی اور آؤٹ لیٹ کا سیاق",
@@ -157,6 +171,7 @@
     "addItem": "شے شامل کریں",
     "manageCategories": "زمرہ جات کا نظم کریں",
     "searchPlaceholder": "نام یا SKU سے تلاش کریں…",
+    "loadError": "آئٹمز لوڈ نہیں ہو سکے",
     "filters": {
       "allCategories": "تمام زمرہ جات",
       "allStatus": "تمام حیثیتیں",
@@ -206,7 +221,12 @@
       "cancel": "منسوخ کریں",
       "save": "شے محفوظ کریں",
       "saving": "محفوظ ہو رہا ہے…",
-      "errorMinMax": "کم از کم اسٹاک زیادہ سے زیادہ اسٹاک سے کم ہونا چاہیے"
+      "errorMinMax": "کم از کم اسٹاک زیادہ سے زیادہ اسٹاک سے کم ہونا چاہیے",
+      "saveError": "محفوظ نہیں ہو سکا۔ براہ کرم دوبارہ کوشش کریں۔",
+      "deactivate": "غیر فعال کریں",
+      "deactivating": "غیر فعال ہو رہا ہے…",
+      "confirmDeactivate": "کیا اس آئٹم کو غیر فعال کرنا ہے؟",
+      "confirmYes": "ہاں، غیر فعال کریں"
     },
     "categoryManager": {
       "title": "زمرہ جات کا نظم کریں",

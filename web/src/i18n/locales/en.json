@@ -54,7 +54,21 @@
     "passwordPlaceholder": "••••••••",
     "forgotPassword": "Forgot password?",
     "signIn": "Sign in",
-    "signingIn": "Signing in…"
+    "signingIn": "Signing in…",
+    "invalidCredentials": "Invalid email or password.",
+    "genericError": "Something went wrong. Please try again.",
+    "enrollmentRequired": "This account requires two-factor authentication setup, which isn't supported in this app yet. Please contact your administrator.",
+    "twoFactor": {
+      "title": "Enter verification code",
+      "subtitleWithDestination": "We sent a code to {{destination}}.",
+      "subtitle": "Enter the verification code for your account.",
+      "code": "Verification code",
+      "codePlaceholder": "123456",
+      "verify": "Verify",
+      "verifying": "Verifying…",
+      "back": "Back",
+      "invalidCode": "Incorrect or expired code."
+    }
   },
   "contextSwitcher": {
     "ariaLabel": "Chain, property, and outlet context",
@@ -157,6 +171,7 @@
     "addItem": "Add item",
     "manageCategories": "Manage categories",
     "searchPlaceholder": "Search by name or SKU…",
+    "loadError": "Couldn't load items",
     "filters": {
       "allCategories": "All categories",
       "allStatus": "All statuses",
@@ -206,7 +221,12 @@
       "cancel": "Cancel",
       "save": "Save item",
       "saving": "Saving…",
-      "errorMinMax": "Min stock must be less than max stock"
+      "errorMinMax": "Min stock must be less than max stock",
+      "saveError": "Couldn't save. Please try again.",
+      "deactivate": "Deactivate",
+      "deactivating": "Deactivating…",
+      "confirmDeactivate": "Deactivate this item?",
+      "confirmYes": "Yes, deactivate"
     },
     "categoryManager": {
       "title": "Manage categories",
