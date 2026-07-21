@@ -4,12 +4,16 @@ import { AppShell } from '@/components/layout/AppShell';
 import { Dashboard } from '@/routes/Dashboard';
 import { Styleguide } from '@/routes/Styleguide';
 import { AlertList } from '@/routes/AlertList';
+import { Login } from '@/routes/Login';
 
 export function App() {
   return (
     <ThemeProvider>
       <BrowserRouter>
         <Routes>
+          {/* Pre-auth, no Global App Chrome — FR-13's Login screen. */}
+          <Route path="/login" element={<Login />} />
+
           <Route element={<AppShell />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/styleguide" element={<Styleguide />} />

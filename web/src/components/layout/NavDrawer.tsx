@@ -1,5 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { NavList } from './nav-items';
 import { mockCurrentUser } from '@/lib/fixtures';
 import { cn } from '@/lib/cn';
@@ -16,6 +17,7 @@ export interface NavDrawerProps {
  * block, since GlobalHeader hides that below `tablet:` to make room for
  * the breadcrumb — a common, expected place for it in a mobile drawer. */
 export function NavDrawer({ open, onOpenChange }: NavDrawerProps) {
+  const { t } = useTranslation();
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -33,7 +35,7 @@ export function NavDrawer({ open, onOpenChange }: NavDrawerProps) {
             </Dialog.Title>
             <Dialog.Close
               className="flex h-12 w-12 items-center justify-center rounded-md text-foreground-muted transition-colors duration-200 hover:bg-surface-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              aria-label="Close menu"
+              aria-label={t('common.closeMenu')}
             >
               <X className="h-5 w-5" />
             </Dialog.Close>

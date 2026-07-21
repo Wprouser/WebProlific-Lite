@@ -1,0 +1,154 @@
+{
+  "common": {
+    "search": "Search",
+    "print": "Print",
+    "export": "Export",
+    "refresh": "Refresh",
+    "help": "Help",
+    "backToDashboard": "Back to Dashboard",
+    "language": "Language",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "close": "Close",
+    "moreActions": "More actions",
+    "switchToLightMode": "Switch to light mode",
+    "switchToDarkMode": "Switch to dark mode"
+  },
+  "export": {
+    "menuItemSuffix": "(nothing to export here)",
+    "popoverBody": "Nothing to export on this screen yet — Print/Export apply contextually once a real report/PO/GRN screen exists."
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "items": "Items",
+    "stock": "Stock",
+    "suppliers": "Suppliers",
+    "reports": "Reports",
+    "users": "Users",
+    "styleguide": "Styleguide",
+    "soon": "Soon"
+  },
+  "dashboard": {
+    "title": "Overview",
+    "lowStockItems": "Low stock items",
+    "totalItems": "Total items",
+    "stockValuation": "Stock valuation",
+    "wastage7d": "Wastage (7d)"
+  },
+  "alerts": {
+    "low-stock": "Low-Stock Items",
+    "expiry": "Expiry Warnings",
+    "po-approvals": "Pending PO Approvals",
+    "grn-variance": "GRN Variance Awaiting Sign-off",
+    "unacknowledged": "Unacknowledged Alerts",
+    "none": "No alerts right now",
+    "needAttention_one": "{{count}} alert needs attention",
+    "needAttention_other": "{{count}} alerts need attention"
+  },
+  "login": {
+    "title": "Sign in",
+    "subtitle": "Welcome back — enter your details to continue.",
+    "email": "Email",
+    "emailPlaceholder": "you@company.com",
+    "password": "Password",
+    "passwordPlaceholder": "••••••••",
+    "forgotPassword": "Forgot password?",
+    "signIn": "Sign in",
+    "signingIn": "Signing in…"
+  },
+  "contextSwitcher": {
+    "ariaLabel": "Chain, property, and outlet context",
+    "switchProperty": "Switch property",
+    "switchOutlet": "Switch outlet"
+  },
+  "search": {
+    "title": "Global search",
+    "description": "Search items, categories, suppliers, purchase orders, GRNs, transfers, recipes, and users.",
+    "placeholder": "Search items, categories, suppliers, POs, GRNs, transfers, recipes, users…",
+    "emptyPrompt": "Search across items, suppliers, purchase orders, and more.",
+    "noResults": "No results for \"{{query}}\"",
+    "entityTypes": {
+      "Item": "Item",
+      "Category": "Category",
+      "Supplier": "Supplier",
+      "Purchase Order": "Purchase Order",
+      "GRN": "GRN",
+      "Transfer": "Transfer",
+      "Recipe/Menu Item": "Recipe/Menu Item",
+      "User": "User"
+    }
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "openSearch": "Open global search",
+    "openSearchNotTyping": "Open global search (when not typing in a field)",
+    "closeModal": "Close the open modal or drawer",
+    "showPanel": "Show this shortcuts panel"
+  },
+  "styleguide": {
+    "title": "Styleguide",
+    "subtitle": "Core FR-17 components, rendered against the live design tokens.",
+    "sections": {
+      "palette": "Palette",
+      "buttons": "Buttons",
+      "badges": "Badges",
+      "cardInput": "Card & Input",
+      "modal": "Modal",
+      "responsiveTable": "Responsive table",
+      "responsiveTableHint": "(resize below md to see the card layout)",
+      "emptyLoading": "Empty & loading states"
+    },
+    "buttons": {
+      "primary": "Primary",
+      "secondary": "Secondary",
+      "outline": "Outline",
+      "ghost": "Ghost",
+      "danger": "Danger",
+      "disabled": "Disabled",
+      "small": "Small",
+      "medium": "Medium",
+      "large": "Large",
+      "addItem": "Add item"
+    },
+    "badges": {
+      "neutral": "Neutral",
+      "primary": "Primary",
+      "success": "Success",
+      "warning": "Warning",
+      "danger": "Danger",
+      "info": "Info"
+    },
+    "card": {
+      "reorderThreshold": "Reorder threshold",
+      "reorderThresholdDesc": "Applies chain-wide unless overridden per outlet.",
+      "placeholder": "e.g. 10",
+      "invalidInput": "Invalid input state",
+      "invalidInputDesc": "error prop drives the border/ring color.",
+      "invalidValue": "not a number"
+    },
+    "modal": {
+      "openModal": "Open modal",
+      "confirmDeactivation": "Confirm deactivation",
+      "confirmDeactivationDesc": "This preserves historical records — it can be reversed later.",
+      "cancel": "Cancel",
+      "deactivate": "Deactivate"
+    },
+    "table": {
+      "item": "Item",
+      "category": "Category",
+      "onHand": "On hand",
+      "status": "Status",
+      "statusValues": {
+        "ok": "OK",
+        "low": "LOW",
+        "out": "OUT"
+      }
+    },
+    "empty": {
+      "toggle": "Toggle empty state",
+      "noItemsYet": "No items yet",
+      "noItemsYetDesc": "Add your first item to start tracking stock.",
+      "addItem": "Add item"
+    }
+  }
+}

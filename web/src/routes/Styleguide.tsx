@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Package } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -29,17 +30,8 @@ const statusVariant: Record<ItemRow['status'], 'success' | 'warning' | 'danger'>
   out: 'danger',
 };
 
-const columns: ResponsiveTableColumn<ItemRow>[] = [
-  { key: 'name', header: 'Item', render: (row) => row.name },
-  { key: 'category', header: 'Category', render: (row) => row.category },
-  { key: 'stock', header: 'On hand', render: (row) => row.stock },
-  {
-    key: 'status',
-    header: 'Status',
-    render: (row) => <Badge variant={statusVariant[row.status]}>{row.status.toUpperCase()}</Badge>,
-  },
-];
-
+// Design-token identifiers, not UI copy — left untranslated deliberately,
+// same as we wouldn't translate a CSS class or variable name.
 const paletteSwatches: { name: string; className: string; on?: 'light' | 'dark' }[] = [
   { name: 'background', className: 'bg-background' },
   { name: 'surface', className: 'bg-surface' },
@@ -62,20 +54,32 @@ const paletteSwatches: { name: string; className: string; on?: 'light' | 'dark' 
  * project this size.
  */
 export function Styleguide() {
+  const { t } = useTranslation();
   const [modalOpen, setModalOpen] = useState(false);
   const [showEmpty, setShowEmpty] = useState(false);
+
+  const columns: ResponsiveTableColumn<ItemRow>[] = [
+    { key: 'name', header: t('styleguide.table.item'), render: (row) => row.name },
+    { key: 'category', header: t('styleguide.table.category'), render: (row) => row.category },
+    { key: 'stock', header: t('styleguide.table.onHand'), render: (row) => row.stock },
+    {
+      key: 'status',
+      header: t('styleguide.table.status'),
+      render: (row) => (
+        <Badge variant={statusVariant[row.status]}>{t(`styleguide.table.statusValues.${row.status}`)}</Badge>
+      ),
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-12">
       <div>
-        <h1 className="font-display text-3xl font-semibold text-foreground">Styleguide</h1>
-        <p className="mt-1.5 text-base text-foreground-muted">
-          Core FR-17 components, rendered against the live design tokens.
-        </p>
+        <h1 className="font-display text-3xl font-semibold text-foreground">{t('styleguide.title')}</h1>
+        <p className="mt-1.5 text-base text-foreground-muted">{t('styleguide.subtitle')}</p>
       </div>
 
       <section className="flex flex-col gap-4">
-        <h2 className="font-display text-xl font-semibold text-foreground">Palette</h2>
+        <h2 className="font-display text-xl font-semibold text-foreground">{t('styleguide.sections.palette')}</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 tablet:grid-cols-6">
           {paletteSwatches.map((swatch) => (
             <div key={swatch.name} className="flex flex-col gap-2">
@@ -89,79 +93,79 @@ export function Styleguide() {
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="font-display text-xl font-semibold text-foreground">Buttons</h2>
+        <h2 className="font-display text-xl font-semibold text-foreground">{t('styleguide.sections.buttons')}</h2>
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="primary">Primary</Button>
-          <Button variant="secondary">Secondary</Button>
-          <Button variant="outline">Outline</Button>
-          <Button variant="ghost">Ghost</Button>
-          <Button variant="danger">Danger</Button>
+          <Button variant="primary">{t('styleguide.buttons.primary')}</Button>
+          <Button variant="secondary">{t('styleguide.buttons.secondary')}</Button>
+          <Button variant="outline">{t('styleguide.buttons.outline')}</Button>
+          <Button variant="ghost">{t('styleguide.buttons.ghost')}</Button>
+          <Button variant="danger">{t('styleguide.buttons.danger')}</Button>
           <Button variant="primary" disabled>
-            Disabled
+            {t('styleguide.buttons.disabled')}
           </Button>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button size="sm">Small</Button>
-          <Button size="md">Medium</Button>
-          <Button size="lg">Large</Button>
-          <Button size="icon" aria-label="Add item">
+          <Button size="sm">{t('styleguide.buttons.small')}</Button>
+          <Button size="md">{t('styleguide.buttons.medium')}</Button>
+          <Button size="lg">{t('styleguide.buttons.large')}</Button>
+          <Button size="icon" aria-label={t('styleguide.buttons.addItem')}>
             <Package className="h-5 w-5" />
           </Button>
         </div>
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="font-display text-xl font-semibold text-foreground">Badges</h2>
+        <h2 className="font-display text-xl font-semibold text-foreground">{t('styleguide.sections.badges')}</h2>
         <div className="flex flex-wrap gap-2">
-          <Badge variant="neutral">Neutral</Badge>
-          <Badge variant="primary">Primary</Badge>
-          <Badge variant="success">Success</Badge>
-          <Badge variant="warning">Warning</Badge>
-          <Badge variant="danger">Danger</Badge>
-          <Badge variant="info">Info</Badge>
+          <Badge variant="neutral">{t('styleguide.badges.neutral')}</Badge>
+          <Badge variant="primary">{t('styleguide.badges.primary')}</Badge>
+          <Badge variant="success">{t('styleguide.badges.success')}</Badge>
+          <Badge variant="warning">{t('styleguide.badges.warning')}</Badge>
+          <Badge variant="danger">{t('styleguide.badges.danger')}</Badge>
+          <Badge variant="info">{t('styleguide.badges.info')}</Badge>
         </div>
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="font-display text-xl font-semibold text-foreground">Card &amp; Input</h2>
+        <h2 className="font-display text-xl font-semibold text-foreground">{t('styleguide.sections.cardInput')}</h2>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>Reorder threshold</CardTitle>
-              <CardDescription>Applies chain-wide unless overridden per outlet.</CardDescription>
+              <CardTitle>{t('styleguide.card.reorderThreshold')}</CardTitle>
+              <CardDescription>{t('styleguide.card.reorderThresholdDesc')}</CardDescription>
             </CardHeader>
             <CardContent>
-              <Input placeholder="e.g. 10" />
+              <Input placeholder={t('styleguide.card.placeholder')} />
             </CardContent>
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Invalid input state</CardTitle>
-              <CardDescription>error prop drives the border/ring color.</CardDescription>
+              <CardTitle>{t('styleguide.card.invalidInput')}</CardTitle>
+              <CardDescription>{t('styleguide.card.invalidInputDesc')}</CardDescription>
             </CardHeader>
             <CardContent>
-              <Input defaultValue="not a number" error />
+              <Input defaultValue={t('styleguide.card.invalidValue')} error />
             </CardContent>
           </Card>
         </div>
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="font-display text-xl font-semibold text-foreground">Modal</h2>
+        <h2 className="font-display text-xl font-semibold text-foreground">{t('styleguide.sections.modal')}</h2>
         <div>
-          <Button onClick={() => setModalOpen(true)}>Open modal</Button>
+          <Button onClick={() => setModalOpen(true)}>{t('styleguide.modal.openModal')}</Button>
           <Modal
             open={modalOpen}
             onOpenChange={setModalOpen}
-            title="Confirm deactivation"
-            description="This preserves historical records — it can be reversed later."
+            title={t('styleguide.modal.confirmDeactivation')}
+            description={t('styleguide.modal.confirmDeactivationDesc')}
           >
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setModalOpen(false)}>
-                Cancel
+                {t('styleguide.modal.cancel')}
               </Button>
               <Button variant="danger" onClick={() => setModalOpen(false)}>
-                Deactivate
+                {t('styleguide.modal.deactivate')}
               </Button>
             </div>
           </Modal>
@@ -170,25 +174,27 @@ export function Styleguide() {
 
       <section className="flex flex-col gap-4">
         <h2 className="font-display text-xl font-semibold text-foreground">
-          Responsive table{' '}
+          {t('styleguide.sections.responsiveTable')}{' '}
           <span className="text-sm font-normal text-foreground-muted">
-            (resize below md to see the card layout)
+            {t('styleguide.sections.responsiveTableHint')}
           </span>
         </h2>
         <ResponsiveTable columns={columns} data={mockItems} getRowKey={(row) => row.id} />
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="font-display text-xl font-semibold text-foreground">Empty &amp; loading states</h2>
+        <h2 className="font-display text-xl font-semibold text-foreground">
+          {t('styleguide.sections.emptyLoading')}
+        </h2>
         <Button variant="outline" className="self-start" onClick={() => setShowEmpty((v) => !v)}>
-          Toggle empty state
+          {t('styleguide.empty.toggle')}
         </Button>
         {showEmpty ? (
           <EmptyState
             icon={<Package className="h-7 w-7" />}
-            title="No items yet"
-            description="Add your first item to start tracking stock."
-            action={<Button>Add item</Button>}
+            title={t('styleguide.empty.noItemsYet')}
+            description={t('styleguide.empty.noItemsYetDesc')}
+            action={<Button>{t('styleguide.empty.addItem')}</Button>}
           />
         ) : (
           <div className="flex flex-col gap-3">

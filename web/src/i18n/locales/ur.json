@@ -1,0 +1,154 @@
+{
+  "common": {
+    "search": "تلاش کریں",
+    "print": "پرنٹ کریں",
+    "export": "ایکسپورٹ کریں",
+    "refresh": "ریفریش کریں",
+    "help": "مدد",
+    "backToDashboard": "ڈیش بورڈ پر واپس جائیں",
+    "language": "زبان",
+    "openMenu": "مینو کھولیں",
+    "closeMenu": "مینو بند کریں",
+    "close": "بند کریں",
+    "moreActions": "مزید اقدامات",
+    "switchToLightMode": "لائٹ موڈ میں تبدیل کریں",
+    "switchToDarkMode": "ڈارک موڈ میں تبدیل کریں"
+  },
+  "export": {
+    "menuItemSuffix": "(یہاں ایکسپورٹ کرنے کے لیے کچھ نہیں)",
+    "popoverBody": "اس اسکرین پر ابھی ایکسپورٹ کرنے کے لیے کچھ نہیں — حقیقی رپورٹ/پی او/جی آر این اسکرین بننے پر پرنٹ/ایکسپورٹ سیاق کے مطابق لاگو ہوں گے۔"
+  },
+  "nav": {
+    "dashboard": "ڈیش بورڈ",
+    "items": "اشیاء",
+    "stock": "اسٹاک",
+    "suppliers": "سپلائرز",
+    "reports": "رپورٹس",
+    "users": "صارفین",
+    "styleguide": "اسٹائل گائیڈ",
+    "soon": "جلد"
+  },
+  "dashboard": {
+    "title": "جائزہ",
+    "lowStockItems": "کم اسٹاک والی اشیاء",
+    "totalItems": "کل اشیاء",
+    "stockValuation": "اسٹاک ویلیویشن",
+    "wastage7d": "ضیاع (7 دن)"
+  },
+  "alerts": {
+    "low-stock": "کم اسٹاک والی اشیاء",
+    "expiry": "میعاد ختم ہونے کی وارننگ",
+    "po-approvals": "زیرِالتواء پی او منظوریاں",
+    "grn-variance": "جی آر این فرق دستخط کا منتظر",
+    "unacknowledged": "غیر تسلیم شدہ الرٹس",
+    "none": "اس وقت کوئی الرٹ نہیں",
+    "needAttention_one": "{{count}} الرٹ پر توجہ درکار ہے",
+    "needAttention_other": "{{count}} الرٹس پر توجہ درکار ہے"
+  },
+  "login": {
+    "title": "سائن ان کریں",
+    "subtitle": "خوش آمدید — جاری رکھنے کے لیے اپنی تفصیلات درج کریں۔",
+    "email": "ای میل",
+    "emailPlaceholder": "you@company.com",
+    "password": "پاس ورڈ",
+    "passwordPlaceholder": "••••••••",
+    "forgotPassword": "پاس ورڈ بھول گئے؟",
+    "signIn": "سائن ان کریں",
+    "signingIn": "سائن ان ہو رہا ہے…"
+  },
+  "contextSwitcher": {
+    "ariaLabel": "چین، پراپرٹی اور آؤٹ لیٹ کا سیاق",
+    "switchProperty": "پراپرٹی تبدیل کریں",
+    "switchOutlet": "آؤٹ لیٹ تبدیل کریں"
+  },
+  "search": {
+    "title": "گلوبل تلاش",
+    "description": "اشیاء، زمرہ جات، سپلائرز، خریداری کے آرڈرز، جی آر اینز، منتقلیاں، ترکیبیں اور صارفین تلاش کریں۔",
+    "placeholder": "اشیاء، زمرہ جات، سپلائرز، پی اوز، جی آر اینز، منتقلیاں، ترکیبیں، صارفین تلاش کریں…",
+    "emptyPrompt": "اشیاء، سپلائرز، خریداری کے آرڈرز اور مزید میں تلاش کریں۔",
+    "noResults": "\"{{query}}\" کے لیے کوئی نتیجہ نہیں",
+    "entityTypes": {
+      "Item": "شے",
+      "Category": "زمرہ",
+      "Supplier": "سپلائر",
+      "Purchase Order": "خریداری کا آرڈر",
+      "GRN": "جی آر این",
+      "Transfer": "منتقلی",
+      "Recipe/Menu Item": "ترکیب/مینو آئٹم",
+      "User": "صارف"
+    }
+  },
+  "shortcuts": {
+    "title": "کی بورڈ شارٹ کٹس",
+    "openSearch": "گلوبل تلاش کھولیں",
+    "openSearchNotTyping": "گلوبل تلاش کھولیں (جب کسی فیلڈ میں ٹائپ نہ کر رہے ہوں)",
+    "closeModal": "کھلا موڈل یا درار بند کریں",
+    "showPanel": "یہ شارٹ کٹ پینل دکھائیں"
+  },
+  "styleguide": {
+    "title": "اسٹائل گائیڈ",
+    "subtitle": "بنیادی FR-17 اجزاء، لائیو ڈیزائن ٹوکنز کے مطابق دکھائے گئے۔",
+    "sections": {
+      "palette": "پیلیٹ",
+      "buttons": "بٹن",
+      "badges": "بیجز",
+      "cardInput": "کارڈ اور ان پٹ",
+      "modal": "موڈل",
+      "responsiveTable": "ریسپانسیو ٹیبل",
+      "responsiveTableHint": "(کارڈ لے آؤٹ دیکھنے کے لیے md سے نیچے سائز تبدیل کریں)",
+      "emptyLoading": "خالی اور لوڈنگ حالتیں"
+    },
+    "buttons": {
+      "primary": "پرائمری",
+      "secondary": "سیکنڈری",
+      "outline": "آؤٹ لائن",
+      "ghost": "گھوسٹ",
+      "danger": "خطرہ",
+      "disabled": "غیر فعال",
+      "small": "چھوٹا",
+      "medium": "درمیانہ",
+      "large": "بڑا",
+      "addItem": "شے شامل کریں"
+    },
+    "badges": {
+      "neutral": "غیر جانبدار",
+      "primary": "پرائمری",
+      "success": "کامیابی",
+      "warning": "وارننگ",
+      "danger": "خطرہ",
+      "info": "معلومات"
+    },
+    "card": {
+      "reorderThreshold": "دوبارہ آرڈر کی حد",
+      "reorderThresholdDesc": "یہ پوری چین پر لاگو ہوتا ہے جب تک فی آؤٹ لیٹ اوور رائیڈ نہ کیا جائے۔",
+      "placeholder": "مثلاً 10",
+      "invalidInput": "غلط ان پٹ کی حالت",
+      "invalidInputDesc": "error پراپ بارڈر/رنگ کنٹرول کرتا ہے۔",
+      "invalidValue": "یہ نمبر نہیں ہے"
+    },
+    "modal": {
+      "openModal": "موڈل کھولیں",
+      "confirmDeactivation": "غیر فعال کرنے کی تصدیق کریں",
+      "confirmDeactivationDesc": "یہ تاریخی ریکارڈ محفوظ رکھتا ہے — بعد میں واپس کیا جا سکتا ہے۔",
+      "cancel": "منسوخ کریں",
+      "deactivate": "غیر فعال کریں"
+    },
+    "table": {
+      "item": "شے",
+      "category": "زمرہ",
+      "onHand": "دستیاب مقدار",
+      "status": "حیثیت",
+      "statusValues": {
+        "ok": "ٹھیک",
+        "low": "کم",
+        "out": "ختم"
+      }
+    },
+    "empty": {
+      "toggle": "خالی حالت ٹوگل کریں",
+      "noItemsYet": "ابھی تک کوئی شے نہیں",
+      "noItemsYetDesc": "اسٹاک ٹریک کرنا شروع کرنے کے لیے اپنی پہلی شے شامل کریں۔",
+      "addItem": "شے شامل کریں"
+    }
+  }
+}

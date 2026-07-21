@@ -1,0 +1,154 @@
+{
+  "common": {
+    "search": "بحث",
+    "print": "طباعة",
+    "export": "تصدير",
+    "refresh": "تحديث",
+    "help": "مساعدة",
+    "backToDashboard": "العودة إلى لوحة التحكم",
+    "language": "اللغة",
+    "openMenu": "فتح القائمة",
+    "closeMenu": "إغلاق القائمة",
+    "close": "إغلاق",
+    "moreActions": "المزيد من الإجراءات",
+    "switchToLightMode": "التبديل إلى الوضع الفاتح",
+    "switchToDarkMode": "التبديل إلى الوضع الداكن"
+  },
+  "export": {
+    "menuItemSuffix": "(لا يوجد شيء لتصديره هنا)",
+    "popoverBody": "لا يوجد شيء لتصديره في هذه الشاشة بعد — تُطبَّق الطباعة/التصدير سياقيًا بمجرد وجود شاشة تقرير/أمر شراء/إيصال استلام فعلية."
+  },
+  "nav": {
+    "dashboard": "لوحة التحكم",
+    "items": "الأصناف",
+    "stock": "المخزون",
+    "suppliers": "الموردون",
+    "reports": "التقارير",
+    "users": "المستخدمون",
+    "styleguide": "دليل التصميم",
+    "soon": "قريبًا"
+  },
+  "dashboard": {
+    "title": "نظرة عامة",
+    "lowStockItems": "أصناف منخفضة المخزون",
+    "totalItems": "إجمالي الأصناف",
+    "stockValuation": "تقييم المخزون",
+    "wastage7d": "الهدر (٧ أيام)"
+  },
+  "alerts": {
+    "low-stock": "أصناف منخفضة المخزون",
+    "expiry": "تنبيهات انتهاء الصلاحية",
+    "po-approvals": "أوامر شراء بانتظار الموافقة",
+    "grn-variance": "فروقات الاستلام بانتظار الاعتماد",
+    "unacknowledged": "تنبيهات غير مطّلع عليها",
+    "none": "لا توجد تنبيهات حاليًا",
+    "needAttention_one": "يتطلب {{count}} تنبيه انتباهك",
+    "needAttention_other": "تتطلب {{count}} تنبيهات انتباهك"
+  },
+  "login": {
+    "title": "تسجيل الدخول",
+    "subtitle": "مرحبًا بعودتك — أدخل بياناتك للمتابعة.",
+    "email": "البريد الإلكتروني",
+    "emailPlaceholder": "you@company.com",
+    "password": "كلمة المرور",
+    "passwordPlaceholder": "••••••••",
+    "forgotPassword": "هل نسيت كلمة المرور؟",
+    "signIn": "تسجيل الدخول",
+    "signingIn": "جارٍ تسجيل الدخول…"
+  },
+  "contextSwitcher": {
+    "ariaLabel": "سياق السلسلة والمنشأة والمنفذ",
+    "switchProperty": "تبديل المنشأة",
+    "switchOutlet": "تبديل المنفذ"
+  },
+  "search": {
+    "title": "البحث الشامل",
+    "description": "البحث في الأصناف والفئات والموردين وأوامر الشراء وإيصالات الاستلام والتحويلات والوصفات والمستخدمين.",
+    "placeholder": "ابحث عن أصناف، فئات، موردين، أوامر شراء، إيصالات استلام، تحويلات، وصفات، مستخدمين…",
+    "emptyPrompt": "ابحث في الأصناف والموردين وأوامر الشراء والمزيد.",
+    "noResults": "لا توجد نتائج لـ \"{{query}}\"",
+    "entityTypes": {
+      "Item": "صنف",
+      "Category": "فئة",
+      "Supplier": "مورد",
+      "Purchase Order": "أمر شراء",
+      "GRN": "إيصال استلام",
+      "Transfer": "تحويل",
+      "Recipe/Menu Item": "وصفة/صنف قائمة",
+      "User": "مستخدم"
+    }
+  },
+  "shortcuts": {
+    "title": "اختصارات لوحة المفاتيح",
+    "openSearch": "فتح البحث الشامل",
+    "openSearchNotTyping": "فتح البحث الشامل (عند عدم الكتابة في حقل)",
+    "closeModal": "إغلاق النافذة المنبثقة أو الدرج المفتوح",
+    "showPanel": "إظهار لوحة الاختصارات هذه"
+  },
+  "styleguide": {
+    "title": "دليل التصميم",
+    "subtitle": "مكونات FR-17 الأساسية، معروضة وفق رموز التصميم الحية.",
+    "sections": {
+      "palette": "لوحة الألوان",
+      "buttons": "الأزرار",
+      "badges": "الشارات",
+      "cardInput": "البطاقة والحقل",
+      "modal": "النافذة المنبثقة",
+      "responsiveTable": "جدول متجاوب",
+      "responsiveTableHint": "(صغّر العرض إلى أقل من md لرؤية تخطيط البطاقات)",
+      "emptyLoading": "حالات الفراغ والتحميل"
+    },
+    "buttons": {
+      "primary": "أساسي",
+      "secondary": "ثانوي",
+      "outline": "محدد",
+      "ghost": "شبحي",
+      "danger": "خطر",
+      "disabled": "معطل",
+      "small": "صغير",
+      "medium": "متوسط",
+      "large": "كبير",
+      "addItem": "إضافة صنف"
+    },
+    "badges": {
+      "neutral": "محايد",
+      "primary": "أساسي",
+      "success": "نجاح",
+      "warning": "تحذير",
+      "danger": "خطر",
+      "info": "معلومة"
+    },
+    "card": {
+      "reorderThreshold": "حد إعادة الطلب",
+      "reorderThresholdDesc": "يُطبَّق على مستوى السلسلة ما لم يُستبدل لكل منفذ.",
+      "placeholder": "مثال: 10",
+      "invalidInput": "حالة إدخال غير صالحة",
+      "invalidInputDesc": "خاصية error تتحكم بلون الحدود/الحلقة.",
+      "invalidValue": "ليس رقمًا"
+    },
+    "modal": {
+      "openModal": "فتح النافذة المنبثقة",
+      "confirmDeactivation": "تأكيد إلغاء التفعيل",
+      "confirmDeactivationDesc": "يحتفظ هذا بالسجلات التاريخية — يمكن التراجع عنه لاحقًا.",
+      "cancel": "إلغاء",
+      "deactivate": "إلغاء التفعيل"
+    },
+    "table": {
+      "item": "الصنف",
+      "category": "الفئة",
+      "onHand": "المتوفر",
+      "status": "الحالة",
+      "statusValues": {
+        "ok": "جيد",
+        "low": "منخفض",
+        "out": "نافد"
+      }
+    },
+    "empty": {
+      "toggle": "تبديل حالة الفراغ",
+      "noItemsYet": "لا توجد أصناف بعد",
+      "noItemsYetDesc": "أضف أول صنف لبدء تتبع المخزون.",
+      "addItem": "إضافة صنف"
+    }
+  }
+}

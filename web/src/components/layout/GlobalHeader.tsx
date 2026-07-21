@@ -1,4 +1,5 @@
 import { Menu } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { mockCurrentUser } from '@/lib/fixtures';
@@ -33,6 +34,7 @@ export function GlobalHeader({
   language,
   onChangeLanguage,
 }: GlobalHeaderProps) {
+  const { t } = useTranslation();
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-surface">
       <div className="flex h-14 items-center gap-2 px-5 tablet:gap-3 tablet:px-8">
@@ -40,7 +42,7 @@ export function GlobalHeader({
           variant="ghost"
           size="icon"
           className="shrink-0 lg:hidden"
-          aria-label="Open menu"
+          aria-label={t('common.openMenu')}
           onClick={onOpenDrawer}
         >
           <Menu className="h-5 w-5" />

@@ -1,0 +1,154 @@
+{
+  "common": {
+    "search": "खोजें",
+    "print": "प्रिंट करें",
+    "export": "निर्यात करें",
+    "refresh": "रीफ़्रेश करें",
+    "help": "सहायता",
+    "backToDashboard": "डैशबोर्ड पर वापस जाएं",
+    "language": "भाषा",
+    "openMenu": "मेनू खोलें",
+    "closeMenu": "मेनू बंद करें",
+    "close": "बंद करें",
+    "moreActions": "अधिक क्रियाएं",
+    "switchToLightMode": "लाइट मोड पर स्विच करें",
+    "switchToDarkMode": "डार्क मोड पर स्विच करें"
+  },
+  "export": {
+    "menuItemSuffix": "(यहां निर्यात करने के लिए कुछ नहीं है)",
+    "popoverBody": "इस स्क्रीन पर अभी निर्यात करने के लिए कुछ नहीं है — असली रिपोर्ट/पीओ/जीआरएन स्क्रीन बनने पर प्रिंट/निर्यात संदर्भ के अनुसार लागू होंगे।"
+  },
+  "nav": {
+    "dashboard": "डैशबोर्ड",
+    "items": "आइटम",
+    "stock": "स्टॉक",
+    "suppliers": "आपूर्तिकर्ता",
+    "reports": "रिपोर्ट",
+    "users": "उपयोगकर्ता",
+    "styleguide": "स्टाइलगाइड",
+    "soon": "जल्द ही"
+  },
+  "dashboard": {
+    "title": "अवलोकन",
+    "lowStockItems": "कम स्टॉक वाले आइटम",
+    "totalItems": "कुल आइटम",
+    "stockValuation": "स्टॉक मूल्यांकन",
+    "wastage7d": "बर्बादी (7 दिन)"
+  },
+  "alerts": {
+    "low-stock": "कम स्टॉक वाले आइटम",
+    "expiry": "समाप्ति चेतावनियां",
+    "po-approvals": "लंबित पीओ स्वीकृतियां",
+    "grn-variance": "जीआरएन अंतर हस्ताक्षर की प्रतीक्षा में",
+    "unacknowledged": "अस्वीकृत अलर्ट",
+    "none": "अभी कोई अलर्ट नहीं है",
+    "needAttention_one": "{{count}} अलर्ट पर ध्यान देने की आवश्यकता है",
+    "needAttention_other": "{{count}} अलर्ट पर ध्यान देने की आवश्यकता है"
+  },
+  "login": {
+    "title": "साइन इन करें",
+    "subtitle": "वापसी पर स्वागत है — जारी रखने के लिए अपना विवरण दर्ज करें।",
+    "email": "ईमेल",
+    "emailPlaceholder": "you@company.com",
+    "password": "पासवर्ड",
+    "passwordPlaceholder": "••••••••",
+    "forgotPassword": "पासवर्ड भूल गए?",
+    "signIn": "साइन इन करें",
+    "signingIn": "साइन इन हो रहा है…"
+  },
+  "contextSwitcher": {
+    "ariaLabel": "चेन, प्रॉपर्टी और आउटलेट संदर्भ",
+    "switchProperty": "प्रॉपर्टी बदलें",
+    "switchOutlet": "आउटलेट बदलें"
+  },
+  "search": {
+    "title": "ग्लोबल सर्च",
+    "description": "आइटम, श्रेणियां, आपूर्तिकर्ता, खरीद आदेश, जीआरएन, स्थानांतरण, व्यंजन विधि और उपयोगकर्ताओं को खोजें।",
+    "placeholder": "आइटम, श्रेणियां, आपूर्तिकर्ता, पीओ, जीआरएन, स्थानांतरण, व्यंजन विधि, उपयोगकर्ता खोजें…",
+    "emptyPrompt": "आइटम, आपूर्तिकर्ता, खरीद आदेश और अधिक में खोजें।",
+    "noResults": "\"{{query}}\" के लिए कोई परिणाम नहीं",
+    "entityTypes": {
+      "Item": "आइटम",
+      "Category": "श्रेणी",
+      "Supplier": "आपूर्तिकर्ता",
+      "Purchase Order": "खरीद आदेश",
+      "GRN": "जीआरएन",
+      "Transfer": "स्थानांतरण",
+      "Recipe/Menu Item": "व्यंजन विधि/मेनू आइटम",
+      "User": "उपयोगकर्ता"
+    }
+  },
+  "shortcuts": {
+    "title": "कीबोर्ड शॉर्टकट",
+    "openSearch": "ग्लोबल सर्च खोलें",
+    "openSearchNotTyping": "ग्लोबल सर्च खोलें (जब किसी फ़ील्ड में टाइप न कर रहे हों)",
+    "closeModal": "खुला मोडल या ड्रॉअर बंद करें",
+    "showPanel": "यह शॉर्टकट पैनल दिखाएं"
+  },
+  "styleguide": {
+    "title": "स्टाइलगाइड",
+    "subtitle": "मूल FR-17 घटक, लाइव डिज़ाइन टोकन के विरुद्ध प्रस्तुत।",
+    "sections": {
+      "palette": "पैलेट",
+      "buttons": "बटन",
+      "badges": "बैज",
+      "cardInput": "कार्ड और इनपुट",
+      "modal": "मोडल",
+      "responsiveTable": "रिस्पॉन्सिव टेबल",
+      "responsiveTableHint": "(कार्ड लेआउट देखने के लिए md से नीचे रीसाइज़ करें)",
+      "emptyLoading": "खाली और लोडिंग स्थितियां"
+    },
+    "buttons": {
+      "primary": "प्राइमरी",
+      "secondary": "सेकेंडरी",
+      "outline": "आउटलाइन",
+      "ghost": "घोस्ट",
+      "danger": "डेंजर",
+      "disabled": "अक्षम",
+      "small": "छोटा",
+      "medium": "मध्यम",
+      "large": "बड़ा",
+      "addItem": "आइटम जोड़ें"
+    },
+    "badges": {
+      "neutral": "न्यूट्रल",
+      "primary": "प्राइमरी",
+      "success": "सफलता",
+      "warning": "चेतावनी",
+      "danger": "डेंजर",
+      "info": "जानकारी"
+    },
+    "card": {
+      "reorderThreshold": "पुनः ऑर्डर सीमा",
+      "reorderThresholdDesc": "यह पूरी चेन पर लागू होता है जब तक प्रति आउटलेट ओवरराइड न किया जाए।",
+      "placeholder": "उदा. 10",
+      "invalidInput": "अमान्य इनपुट स्थिति",
+      "invalidInputDesc": "error प्रॉप बॉर्डर/रिंग रंग को नियंत्रित करता है।",
+      "invalidValue": "यह संख्या नहीं है"
+    },
+    "modal": {
+      "openModal": "मोडल खोलें",
+      "confirmDeactivation": "निष्क्रियकरण की पुष्टि करें",
+      "confirmDeactivationDesc": "यह ऐतिहासिक रिकॉर्ड सुरक्षित रखता है — इसे बाद में वापस किया जा सकता है।",
+      "cancel": "रद्द करें",
+      "deactivate": "निष्क्रिय करें"
+    },
+    "table": {
+      "item": "आइटम",
+      "category": "श्रेणी",
+      "onHand": "उपलब्ध मात्रा",
+      "status": "स्थिति",
+      "statusValues": {
+        "ok": "ठीक",
+        "low": "कम",
+        "out": "समाप्त"
+      }
+    },
+    "empty": {
+      "toggle": "खाली स्थिति टॉगल करें",
+      "noItemsYet": "अभी तक कोई आइटम नहीं",
+      "noItemsYetDesc": "स्टॉक ट्रैक करना शुरू करने के लिए अपना पहला आइटम जोड़ें।",
+      "addItem": "आइटम जोड़ें"
+    }
+  }
+}

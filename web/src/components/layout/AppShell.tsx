@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { GlobalHeader } from './GlobalHeader';
 import { AlertBar } from './AlertBar';
@@ -6,8 +6,8 @@ import { NavDrawer } from './NavDrawer';
 import { NavList } from './nav-items';
 import { GlobalSearchDialog } from './GlobalSearch';
 import { ShortcutsHelp } from './ShortcutsHelp';
-import type { Language } from './GlobalActions';
 import { useKeyboardShortcut } from '@/lib/use-keyboard-shortcut';
+import { useAppLanguage } from '@/i18n/useAppLanguage';
 import { mockCurrentUser } from '@/lib/fixtures';
 
 /**
@@ -21,15 +21,7 @@ export function AppShell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [language, setLanguage] = useState<Language>('en');
-
-  // Real dir/lang flip — genuinely functional. No translated strings yet
-  // (that's FR-15), so English text will render right-to-left when AR is
-  // selected; this proves the mechanism, not the translations.
-  useEffect(() => {
-    document.documentElement.lang = language;
-    document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
-  }, [language]);
+  const { language, changeLanguage } = useAppLanguage();
 
   useKeyboardShortcut({ key: 'k', ctrlOrCmd: true, ignoreWhenTyping: false, handler: () => setSearchOpen(true) });
   useKeyboardShortcut({ key: '/', handler: () => setSearchOpen(true) });
@@ -44,7 +36,7 @@ export function AppShell() {
         onOpenSearch={() => setSearchOpen(true)}
         onOpenHelp={() => setHelpOpen(true)}
         language={language}
-        onChangeLanguage={setLanguage}
+        onChangeLanguage={changeLanguage}
       />
       <AlertBar />
 

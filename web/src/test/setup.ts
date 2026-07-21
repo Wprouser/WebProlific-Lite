@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import '@/i18n';
 
 // jsdom doesn't implement matchMedia — ThemeProvider depends on it.
 if (!window.matchMedia) {

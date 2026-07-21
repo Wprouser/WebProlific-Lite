@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { Check, ChevronRight, ChevronsUpDown } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { mockChain } from '@/lib/fixtures';
 import { cn } from '@/lib/cn';
 
@@ -25,6 +26,7 @@ import { cn } from '@/lib/cn';
  * against mock fixture data — see fixtures.ts.
  */
 export function ContextSwitcher() {
+  const { t } = useTranslation();
   const [selectedPropertyId, setSelectedPropertyId] = useState(mockChain.properties[0]!.id);
   const [selectedOutletId, setSelectedOutletId] = useState<string | undefined>(
     mockChain.properties[0]!.outlets[0]?.id,
@@ -47,7 +49,7 @@ export function ContextSwitcher() {
     <>
       {/* tablet:+ — full breadcrumb */}
       <nav
-        aria-label="Chain, property, and outlet context"
+        aria-label={t('contextSwitcher.ariaLabel')}
         className="hidden min-w-0 items-center gap-1 text-sm tablet:flex"
       >
         <span className="truncate font-medium text-foreground">{mockChain.name}</span>
@@ -67,7 +69,7 @@ export function ContextSwitcher() {
                 className="z-50 w-64 rounded-lg border border-border bg-surface p-2 shadow-lg data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95"
               >
                 <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-foreground-muted">
-                  Switch property
+                  {t('contextSwitcher.switchProperty')}
                 </p>
                 {mockChain.properties.map((p) => (
                   <Popover.Close asChild key={p.id}>
@@ -106,7 +108,7 @@ export function ContextSwitcher() {
                 className="z-50 w-64 rounded-lg border border-border bg-surface p-2 shadow-lg data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95"
               >
                 <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-foreground-muted">
-                  Switch outlet
+                  {t('contextSwitcher.switchOutlet')}
                 </p>
                 {property.outlets.map((o) => (
                   <Popover.Close asChild key={o.id}>

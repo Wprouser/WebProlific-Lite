@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Bell } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { mockAlertBar } from '@/lib/fixtures';
 import { cn } from '@/lib/cn';
 
@@ -20,6 +21,7 @@ const severityClasses: Record<'warning' | 'danger', string> = {
  * needs attention, tap here," not five simultaneous labels.
  */
 export function AlertBar() {
+  const { t } = useTranslation();
   const total = mockAlertBar.reduce((sum, a) => sum + a.count, 0);
   const mostUrgent = mockAlertBar.find((a) => a.severity === 'danger') ?? mockAlertBar[0];
 
@@ -27,7 +29,7 @@ export function AlertBar() {
     <div className="border-b border-border bg-surface px-5 py-2 tablet:px-8">
       <div className="tablet:hidden">
         {total === 0 || !mostUrgent ? (
-          <span className="text-sm text-foreground-muted">No alerts right now</span>
+          <span className="text-sm text-foreground-muted">{t('alerts.none')}</span>
         ) : (
           <Link
             to={`/alerts/${mostUrgent.type}`}
@@ -37,14 +39,14 @@ export function AlertBar() {
             )}
           >
             <Bell className="h-3.5 w-3.5" />
-            {total} alert{total === 1 ? '' : 's'} need attention
+            {t('alerts.needAttention', { count: total })}
           </Link>
         )}
       </div>
 
       <div className="hidden flex-wrap items-center gap-2 tablet:flex">
         {total === 0 ? (
-          <span className="text-sm text-foreground-muted">No alerts right now</span>
+          <span className="text-sm text-foreground-muted">{t('alerts.none')}</span>
         ) : (
           mockAlertBar.map((alert) => (
             <Link
@@ -55,7 +57,7 @@ export function AlertBar() {
                 severityClasses[alert.severity],
               )}
             >
-              {alert.label} <span className="font-semibold">{alert.count}</span>
+              {t(`alerts.${alert.type}`)} <span className="font-semibold">{alert.count}</span>
             </Link>
           ))
         )}

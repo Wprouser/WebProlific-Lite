@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/cn';
 
 export interface ModalProps {
@@ -19,6 +20,7 @@ export interface ModalProps {
  * this library is plain Tailwind + our own tokens.
  */
 export function Modal({ open, onOpenChange, title, description, children, className }: ModalProps) {
+  const { t } = useTranslation();
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -45,7 +47,7 @@ export function Modal({ open, onOpenChange, title, description, children, classN
             </div>
             <Dialog.Close
               className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md text-foreground-muted transition-colors duration-200 hover:bg-surface-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              aria-label="Close"
+              aria-label={t('common.close')}
             >
               <X className="h-5 w-5" />
             </Dialog.Close>

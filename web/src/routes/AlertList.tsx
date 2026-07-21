@@ -1,5 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { Bell } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { mockAlertBar } from '@/lib/fixtures';
 
@@ -12,6 +13,7 @@ import { mockAlertBar } from '@/lib/fixtures';
  * fake data table.
  */
 export function AlertList() {
+  const { t } = useTranslation();
   const { type } = useParams<{ type: string }>();
   const alert = mockAlertBar.find((a) => a.type === type);
 
@@ -19,7 +21,7 @@ export function AlertList() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="font-display text-3xl font-semibold text-foreground">
-          {alert?.label ?? 'Alerts'}
+          {alert ? t(`alerts.${alert.type}`) : 'Alerts'}
         </h1>
         <p className="mt-1.5 text-base text-foreground-muted">
           Filtered view: <code className="rounded bg-surface-secondary px-1.5 py-0.5 text-sm">{type}</code>

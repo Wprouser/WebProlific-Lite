@@ -1,4 +1,5 @@
 import { AlertTriangle, DollarSign, Package, TrendingDown } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { cn } from '@/lib/cn';
@@ -8,15 +9,15 @@ const stats = [
     // Kept short (matches sibling label lengths) so it never wraps to a
     // second line at any grid width — that wrap was what made the hero
     // card taller than its siblings, not its padding.
-    label: 'Low stock items',
+    labelKey: 'lowStockItems',
     value: '3',
     icon: AlertTriangle,
     hero: true,
   },
-  { label: 'Total items', value: '482', icon: Package, accentClass: 'bg-accent-blue/10 text-accent-blue' },
-  { label: 'Stock valuation', value: '$128,940', icon: DollarSign, accentClass: 'bg-info/10 text-info' },
+  { labelKey: 'totalItems', value: '482', icon: Package, accentClass: 'bg-accent-blue/10 text-accent-blue' },
+  { labelKey: 'stockValuation', value: '$128,940', icon: DollarSign, accentClass: 'bg-info/10 text-info' },
   {
-    label: 'Wastage (7d)',
+    labelKey: 'wastage7d',
     value: '$1,240',
     icon: TrendingDown,
     accentClass: 'bg-accent-blue/10 text-accent-blue',
@@ -31,18 +32,26 @@ const stats = [
  * status from the solid light-blue/periwinkle gradient + white text alone,
  * not from extra height or a separate section above the fold. Mock data —
  * no FR-01/FR-07 backend to read from yet.
+ *
+ * "Jeddah Hotel, Main Restaurant" is left untranslated deliberately — per
+ * FR-15's scope boundary, user-entered/business-entity names (property,
+ * outlet) display exactly as entered regardless of UI language; only the
+ * "Overview" label and the KPI captions are system-generated chrome.
  */
 export function Dashboard() {
+  const { t } = useTranslation();
+
   return (
     <div className="flex flex-col gap-3">
       <h1 className="font-display text-xl font-semibold text-foreground">
-        Overview <span className="font-sans text-sm font-normal text-foreground-muted">— Jeddah Hotel, Main Restaurant</span>
+        {t('dashboard.title')}{' '}
+        <span className="font-sans text-sm font-normal text-foreground-muted">— Jeddah Hotel, Main Restaurant</span>
       </h1>
 
       <div className="grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-2 tablet:grid-cols-4">
         {stats.map((stat) => (
           <Card
-            key={stat.label}
+            key={stat.labelKey}
             className={cn(
               'shadow-md transition-shadow duration-200',
               stat.hero
@@ -51,7 +60,9 @@ export function Dashboard() {
             )}
           >
             <CardHeader className="flex-row items-center justify-between space-y-0 pb-0">
-              <CardDescription className={cn('truncate', stat.hero && 'text-white/80')}>{stat.label}</CardDescription>
+              <CardDescription className={cn('truncate', stat.hero && 'text-white/80')}>
+                {t(`dashboard.${stat.labelKey}`)}
+              </CardDescription>
               <div
                 className={cn(
                   'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',

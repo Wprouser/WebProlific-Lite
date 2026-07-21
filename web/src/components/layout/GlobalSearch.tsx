@@ -1,20 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Search } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { mockSearchIndex, type SearchEntityType, type SearchResultFixture } from '@/lib/fixtures';
 
 /** Compact, auto-width at every breakpoint (icon-only on phone, +label from
  * `tablet:`, +kbd hint from `lg:`) — a fixed-width input-lookalike box was
  * eating too much of the header's limited horizontal budget. */
 export function GlobalSearchTrigger({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation();
   return (
     <button
       onClick={onClick}
-      aria-label="Search"
+      aria-label={t('common.search')}
       className="flex h-12 shrink-0 items-center gap-2 rounded-md border border-border-strong bg-surface px-3 text-sm text-foreground-muted transition-colors duration-200 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
       <Search className="h-4 w-4 shrink-0" />
-      <span className="hidden tablet:inline">Search</span>
+      <span className="hidden tablet:inline">{t('common.search')}</span>
       <kbd className="hidden shrink-0 rounded border border-border-strong bg-surface-secondary px-1.5 py-0.5 text-xs lg:inline">
         Ctrl K
       </kbd>
@@ -36,6 +38,7 @@ export interface GlobalSearchDialogProps {
  * fixtures.mockSearchIndex.
  */
 export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
 
   useEffect(() => {
@@ -65,10 +68,8 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
         <Dialog.Content
           className="fixed left-1/2 top-[15vh] z-50 w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-lg border border-border bg-surface shadow-xl data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out"
         >
-          <Dialog.Title className="sr-only">Global search</Dialog.Title>
-          <Dialog.Description className="sr-only">
-            Search items, categories, suppliers, purchase orders, GRNs, transfers, recipes, and users.
-          </Dialog.Description>
+          <Dialog.Title className="sr-only">{t('search.title')}</Dialog.Title>
+          <Dialog.Description className="sr-only">{t('search.description')}</Dialog.Description>
           <div className="flex items-center gap-3 border-b border-border px-5 py-4">
             <Search className="h-5 w-5 shrink-0 text-foreground-muted" />
             {/* eslint-disable-next-line jsx-a11y/no-autofocus -- command palette input, expected UX */}
@@ -76,7 +77,7 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search items, categories, suppliers, POs, GRNs, transfers, recipes, users…"
+              placeholder={t('search.placeholder')}
               className="w-full bg-transparent text-base text-foreground placeholder:text-foreground-muted focus:outline-none"
             />
             <kbd className="hidden shrink-0 rounded border border-border-strong bg-surface-secondary px-1.5 py-0.5 text-xs text-foreground-muted sm:inline">
@@ -85,19 +86,17 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
           </div>
           <div className="max-h-96 overflow-y-auto p-2">
             {!hasQuery && (
-              <p className="px-3 py-10 text-center text-sm text-foreground-muted">
-                Search across items, suppliers, purchase orders, and more.
-              </p>
+              <p className="px-3 py-10 text-center text-sm text-foreground-muted">{t('search.emptyPrompt')}</p>
             )}
             {hasQuery && !hasResults && (
               <p className="px-3 py-10 text-center text-sm text-foreground-muted">
-                No results for &ldquo;{query}&rdquo;
+                {t('search.noResults', { query })}
               </p>
             )}
             {[...grouped.entries()].map(([type, items]) => (
               <div key={type} className="mb-2">
                 <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-foreground-muted">
-                  {type}
+                  {t(`search.entityTypes.${type}`)}
                 </p>
                 {items.map((item) => (
                   <button
