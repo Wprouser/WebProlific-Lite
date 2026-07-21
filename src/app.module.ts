@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { TenancyModule } from './tenancy/tenancy.module';
 import { AuthModule } from './auth/auth.module';
 import { RbacModule } from './rbac/rbac.module';
 import { UsersModule } from './users/users.module';
+import { ActivityLogModule } from './activity-log/activity-log.module';
 import { ScopeResolutionGuard } from './tenancy/guards/scope-resolution.guard';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './rbac/guards/roles.guard';
@@ -14,11 +16,16 @@ import { FieldRestrictionInterceptor } from './rbac/interceptors/field-restricti
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    // FR-18's domain-event bus (see ActivityBus) — .forRoot() registers
+    // EventEmitter2 as a global provider, so no other module needs to
+    // import EventEmitterModule itself.
+    EventEmitterModule.forRoot(),
     PrismaModule,
     TenancyModule,
     AuthModule,
     RbacModule,
     UsersModule,
+    ActivityLogModule,
   ],
   providers: [
     // Order matters: JwtAuthGuard populates request.user, ScopeResolutionGuard

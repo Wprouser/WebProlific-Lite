@@ -19,6 +19,7 @@ import { RequestWithAccess } from '../../tenancy/types/request-with-access';
 import { Roles } from '../../rbac/decorators/roles.decorator';
 import { ResourceScope } from '../../rbac/decorators/resource-scope.decorator';
 import { AuditLogService } from '../../rbac/services/audit-log.service';
+import { ActivityBus } from '../../activity-log/services/activity-bus.service';
 
 const FIFTEEN_MIN_MS = 15 * 60 * 1000;
 
@@ -28,6 +29,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly twoFactorService: TwoFactorService,
     private readonly auditLogService: AuditLogService,
+    private readonly activityBus: ActivityBus,
   ) {}
 
   @Public()
@@ -81,8 +83,23 @@ export class AuthController {
   @Public()
   @Post('2fa/enroll/confirm')
   @HttpCode(200)
-  enrollConfirm(@Req() request: RequestWithAccess, @Body() dto: EnrollConfirmDto) {
-    return this.twoFactorService.enrollConfirm(request, dto);
+  async enrollConfirm(@Req() request: RequestWithAccess, @Body() dto: EnrollConfirmDto) {
+    const result = await this.twoFactorService.enrollConfirm(request, dto);
+    // Voluntary enrollment: request.user is already set. Forced enrollment
+    // (no prior session, authenticated via pendingEnrollmentToken): the
+    // service's response carries a fresh login with the user id instead.
+    const userId = request.user?.id ?? result.login?.user.id;
+    if (userId) {
+      await this.activityBus.record({
+        userId,
+        category: 'AUTH',
+        action: '2FA_ENABLED',
+        entityType: 'User',
+        entityId: userId,
+        descriptionKey: 'activity.auth.two_factor_enabled',
+      });
+    }
+    return result;
   }
 
   @Post('2fa/backup-codes/regenerate')
@@ -95,6 +112,14 @@ export class AuthController {
   @HttpCode(200)
   async disableTwoFactor(@Req() request: RequestWithAccess, @Body() dto: DisableTwoFactorDto) {
     await this.twoFactorService.disable(request.user!.id, dto);
+    await this.activityBus.record({
+      userId: request.user!.id,
+      category: 'AUTH',
+      action: '2FA_DISABLED',
+      entityType: 'User',
+      entityId: request.user!.id,
+      descriptionKey: 'activity.auth.two_factor_disabled',
+    });
     return { success: true };
   }
 

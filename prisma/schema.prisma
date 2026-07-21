@@ -98,6 +98,8 @@ model User {
   twoFactorChallenges TwoFactorChallenge[]
   inviteTokens        InviteToken[]
   auditLogs           AuditLog[]
+  activityLogs        ActivityLog[]
+  transactionLogs     TransactionLog[]
 }
 
 model TwoFactorAuth {
@@ -208,4 +210,84 @@ model InviteToken {
   createdAt DateTime  @default(now())
 
   @@index([userId])
+}
+
+// FR-18: Activity & Transaction Log (System-Wide)
+// ActivityCategory is a String column, not a Prisma `enum` block — see the
+// header note above; enforced via src/activity-log/constants/enums.ts.
+// Layers on top of FR-11's AuditLog (see that model's note), not a
+// replacement for it — every write path that already produces an AuditLog
+// row also produces an ActivityLog row (always) and, if it created,
+// updated, or deleted a master-data or transactional entity, one or more
+// TransactionLog rows (one per changed field on updates) — via the
+// domain-event bus in src/activity-log/services/activity-bus.service.ts.
+model ActivityLog {
+  id          String   @id @default(uuid())
+  chainId     String?
+  propertyId  String?
+  outletId    String?
+  userId      String? // null for system-generated events (e.g. scheduled AI jobs)
+  user        User?    @relation(fields: [userId], references: [id])
+  category    String // ActivityCategory
+  action      String // e.g. "ITEM_CREATED", "PO_APPROVED", "LOGIN_SUCCESS", "2FA_ENABLED"
+  entityType  String?
+  entityId    String?
+  // Human-readable, localized at render time via a message key, not stored
+  // pre-translated — see FR-15's rendering approach in the spec.
+  description String
+  // JSON-serialized string (NVARCHAR(MAX)) — SQL Server has no native Json
+  // type via Prisma, so serialize/deserialize at the repository layer, same
+  // pattern as AuditLog.before/after.
+  metadata    String?
+  ipAddress   String?
+  deviceInfo  String?
+  createdAt   DateTime @default(now())
+
+  @@index([outletId, createdAt])
+  @@index([chainId, createdAt])
+  @@index([userId, createdAt])
+  @@index([category, createdAt])
+}
+
+// FR-18 (revised): a field-level change record for any create/update/delete
+// on master data (Item, Category, Supplier, Recipe, TaxRate, Currency,
+// User, Outlet/Property/Chain settings) or transactional data
+// (StockTransaction, PurchaseOrder, GRN, Transfer, Sale) — one row per
+// changed field on updates, regardless of whether the change carries a
+// monetary value. `valueAmount` is optional enrichment only, not the
+// defining criterion for whether a row exists.
+model TransactionLog {
+  id             String   @id @default(uuid())
+  // Deliberately nullable, deviating from the original "outletId String"
+  // shape — chain/property-level master-data changes (Chain, Property
+  // settings) have no single outlet to attach to. At least one of
+  // chainId/propertyId/outletId is always set; which one(s) depends on the
+  // entity's own place in the hierarchy. See AuditLogService's
+  // buildEntityChange for the resolution logic.
+  outletId       String?
+  chainId        String?
+  propertyId     String?
+  entityCategory String // EntityCategory: 'MASTER_DATA' | 'TRANSACTIONAL'
+  entityType     String // e.g. 'Item', 'Supplier', 'PurchaseOrder', 'StockTransaction'
+  entityId       String // FK to the actual record that changed
+  operation      String // Operation: 'CREATE' | 'UPDATE' | 'DELETE'
+  fieldName      String? // the specific field that changed (null for CREATE/DELETE)
+  oldValue       String? // string-serialized previous value (null for CREATE)
+  newValue       String? // string-serialized new value (null for DELETE)
+  valueAmount    Decimal? @db.Decimal(12, 2)
+  currencyCode   String?
+  performedById  String?
+  performedBy    User?    @relation(fields: [performedById], references: [id])
+  // Message key, not a frozen sentence — rendered at read time via FR-15
+  // i18n using this row's own entityType/fieldName/oldValue/newValue as
+  // interpolation data, same "localized at render time" pattern as
+  // ActivityLog.description.
+  summary        String
+  createdAt      DateTime @default(now())
+
+  @@index([outletId, createdAt])
+  @@index([propertyId, createdAt])
+  @@index([chainId, createdAt])
+  @@index([entityType, entityId])
+  @@index([entityCategory, createdAt])
 }

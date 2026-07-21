@@ -19,6 +19,13 @@ export interface EffectiveAccess {
   userId: string;
   /** Union of every outlet id the user can reach, across all their grants. */
   effectiveOutletIds: string[];
+  /** Union of every property id the user can reach (direct PROPERTY grants
+   * plus properties under any CHAIN grant) — added for FR-18's activity-log
+   * scoping, which needs to filter at the property/chain level too, not
+   * just outlet level. */
+  effectivePropertyIds: string[];
+  /** Union of every chain id the user has a direct CHAIN grant on. */
+  effectiveChainIds: string[];
   /** Highest-privilege role across all grants — a coarse, whole-user summary
    *  (e.g. for display), NOT sufficient for per-resource authorization. */
   effectiveRole: Role | undefined;
@@ -97,6 +104,8 @@ export class ScopeResolutionService {
     return {
       userId,
       effectiveOutletIds: Array.from(outletRoleMap.keys()),
+      effectivePropertyIds: Array.from(propertyRoleMap.keys()),
+      effectiveChainIds: Array.from(chainRoleMap.keys()),
       effectiveRole,
       grants: grants.map((g) => ({
         scopeType: g.scopeType,

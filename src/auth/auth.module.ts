@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { TenancyModule } from '../tenancy/tenancy.module';
 import { RbacModule } from '../rbac/rbac.module';
+import { ActivityLogModule } from '../activity-log/activity-log.module';
 import { AuthController } from './controllers/auth.controller';
 import { AuthService } from './services/auth.service';
 import { TwoFactorService } from './services/two-factor.service';
@@ -35,6 +36,7 @@ import { PrismaPasswordResetTokenRepository } from './repositories/prisma/prisma
     ConfigModule,
     TenancyModule,
     RbacModule,
+    ActivityLogModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

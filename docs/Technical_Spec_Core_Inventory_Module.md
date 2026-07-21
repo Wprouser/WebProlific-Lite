@@ -1285,7 +1285,12 @@ Since store/kitchen staff often need to move fast without reaching for a mouse/t
 ## FR-18: Activity & Transaction Log (System-Wide)
 
 ### Approach
-Beyond the per-module `AuditLog` writes already specified in FR-11 (RBAC) and referenced throughout FR-01–FR-16, the system maintains a **unified, queryable Activity Log** — a single place where an Owner/Manager can see "what happened" across the whole system, and a **Transaction Log** specifically for anything touching stock or money, satisfying both operational transparency and compliance/audit needs.
+Beyond the per-module `AuditLog` writes already specified in FR-11 (RBAC), the system maintains two complementary, system-wide logs:
+
+- **Activity Log** — a human-readable, chronological feed of **every action any user takes** anywhere in the system: logins, approvals, invites, 2FA changes, creates, edits, deletes — "who did what, when," across every module.
+- **Transaction Log** — a **field-level change record** capturing exactly **what changed** during any create/update/delete on a **master data screen** (Item, Category, Supplier, Recipe/Menu Item, Tax Rate, Currency, User, Outlet/Property/Chain settings) or a **transactional screen** (Stock Transaction, Purchase Order, GRN, Transfer, Sale) — the specific field(s), their before-value and after-value, regardless of whether the change carries a monetary amount. Editing a Supplier's phone number, changing an Item's reorder threshold, and receiving a GRN are all Transaction Log entries; none of them need to "have a dollar value" to qualify.
+
+**The distinction in one line:** Activity Log answers "what did Ahmed do at 2:15pm" (an event); Transaction Log answers "what exactly changed on this Item record, and what was it before" (a data diff). Every mutating action produces an Activity Log entry; if that action modified any tracked field on a master or transactional entity, it also produces one or more Transaction Log entries — one per changed field, or one per record with a structured diff, per the model below.
 
 ### Data Model
 ```prisma
@@ -1316,16 +1321,22 @@ model ActivityLog {
 model TransactionLog {
   id             String   @id @default(uuid())
   outletId       String
-  transactionType String  // 'STOCK_TRANSACTION' | 'PURCHASE_ORDER' | 'GRN' | 'TRANSFER' | 'SALE'
-  referenceId    String            // FK to the actual StockTransaction/PO/GRN/Transfer/Sale row
-  valueAmount    Decimal? @db.Decimal(12,2)
+  entityCategory String   // 'MASTER_DATA' | 'TRANSACTIONAL' — MASTER_DATA: Item, Category, Supplier, Recipe, TaxRate, Currency, User, Outlet/Property/Chain settings. TRANSACTIONAL: StockTransaction, PurchaseOrder, GRN, Transfer, Sale
+  entityType     String   // e.g. 'Item', 'Supplier', 'PurchaseOrder', 'StockTransaction'
+  entityId       String   // FK to the actual record that changed
+  operation      String   // 'CREATE' | 'UPDATE' | 'DELETE'
+  fieldName      String?  // the specific field that changed (null for CREATE/DELETE, where the whole record is the "change")
+  oldValue       String?  // string-serialized previous value (null for CREATE)
+  newValue       String?  // string-serialized new value (null for DELETE)
+  valueAmount    Decimal? @db.Decimal(12,2)  // populated only when the change also has a monetary/quantity dimension (e.g., a GRN receipt) — optional enrichment, not the defining criterion for whether an entry exists
   currencyCode   String?
   performedById  String?
-  summary        String            // e.g. "Received 18kg Basmati Rice from Al-Fahad Trading, SAR 1,566.00 incl. tax"
+  summary        String            // human-readable one-liner, e.g. "Reorder threshold changed from 10 to 15 on Basmati Rice" or "Received 18kg Basmati Rice from Al-Fahad Trading, SAR 1,566.00 incl. tax"
   createdAt      DateTime @default(now())
 
   @@index([outletId, createdAt])
-  @@index([transactionType, createdAt])
+  @@index([entityType, entityId])
+  @@index([entityCategory, createdAt])
 }
 ```
 
@@ -1333,28 +1344,31 @@ model TransactionLog {
 | Method | Endpoint | Purpose |
 |---|---|---|
 | `GET` | `/activity-log` | Filterable feed (`outletId`, `propertyId`, `chainId`, `category`, `userId`, `dateFrom`, `dateTo`) |
-| `GET` | `/transaction-log` | Filterable feed of value-bearing transactions (`outletId`, `transactionType`, `dateFrom`, `dateTo`, `minValue`) |
+| `GET` | `/transaction-log` | Filterable feed of field-level changes on master/transactional data (`outletId`, `entityCategory`, `entityType`, `entityId`, `dateFrom`, `dateTo`) |
 | `GET` | `/activity-log/export?format=pdf|xlsx` | Export for compliance/audit purposes |
 
 ### Business Logic
-- **Every write path in FR-01 through FR-16 emits both:**
+- **Every write path in FR-00 through FR-16 emits both:**
   1. The module-specific record already specified (e.g., a `StockTransaction` row, a `POLine`, an `AuditLog` entry per FR-11's mutating-endpoint rule), **and**
-  2. A corresponding `ActivityLog` row (always) and, if the action carries a monetary/stock value, a `TransactionLog` row.
-  This is implemented as a single cross-cutting NestJS interceptor/event-listener subscribing to a domain-event bus (e.g., emit `activity.recorded` events from each service after a successful write) rather than hand-adding logging calls in every service method — keeps it consistent and impossible to forget in new modules.
-- **Login/auth events** (FR-13): `LOGIN_SUCCESS`, `LOGIN_FAILED`, `2FA_ENABLED`, `2FA_DISABLED`, `PASSWORD_RESET`, `LOGOUT` all produce `ActivityLog` rows with `category: AUTH` — this is what lets a Chain Owner later answer "who logged in and when," which is a common security/compliance question.
-- **Rendering:** `description` is composed from a message-key + structured `metadata` at write time (e.g., `key: "activity.item.created", metadata: {itemName, sku}`) so the **feed itself is multilingual** (FR-15) — a Manager viewing in Arabic and an Owner viewing in English see the same event correctly localized, not a frozen English sentence.
+  2. A corresponding `ActivityLog` row (always), **and**
+  3. One or more `TransactionLog` rows **whenever the action creates, updates, or deletes a master-data or transactional entity** — this is the default for nearly every mutating endpoint in the application, not a special case reserved for financial transactions. Editing an Item's `minStock`, renaming a Supplier, and receiving a GRN all produce TransactionLog rows; the only mutating actions that produce an ActivityLog entry *without* a TransactionLog entry are ones that don't change a tracked entity's data at all (e.g., `LOGIN_SUCCESS`, `LOGOUT`, a report export).
+  This is implemented as a single cross-cutting NestJS interceptor/event-listener subscribing to a domain-event bus (e.g., emit `activity.recorded` and `entity.changed` events from each service after a successful write) rather than hand-adding logging calls in every service method — keeps it consistent and impossible to forget in new modules.
+- **Diff granularity:** for `UPDATE` operations, emit one `TransactionLog` row per changed field (so a single PATCH that changes both `name` and `minStock` on an Item produces two rows, each with its own `fieldName`/`oldValue`/`newValue`) — this makes the log genuinely useful for "show me every change to this field over time," not just "something changed on this date." For `CREATE`/`DELETE`, a single row is sufficient (`fieldName: null`, with the full record's relevant state summarized in `summary`).
+- **Login/auth events** (FR-13): `LOGIN_SUCCESS`, `LOGIN_FAILED`, `2FA_ENABLED`, `2FA_DISABLED`, `PASSWORD_RESET`, `LOGOUT` all produce `ActivityLog` rows with `category: AUTH` (no `TransactionLog` rows, since no master/transactional entity data changed) — this is what lets a Chain Owner later answer "who logged in and when," which is a common security/compliance question.
+- **Rendering:** `description` (ActivityLog) and `summary` (TransactionLog) are composed from a message-key + structured data at write time (e.g., `key: "activity.item.created", metadata: {itemName, sku}`) so **both feeds are multilingual** (FR-15) — a Manager viewing in Arabic and an Owner viewing in English see the same event correctly localized, not a frozen English sentence.
 - **Retention:** activity/transaction logs are retained indefinitely by default (they're small, append-only rows) but exposed via a configurable archive/export-then-purge policy for chains with strict data-retention requirements — never silently auto-deleted without an explicit chain-level setting.
-- **Performance:** high-volume categories (STOCK) should be paginated with cursor-based pagination, not offset pagination, given potentially large row counts at scale.
+- **Performance:** high-volume entity types (Item, StockTransaction) should be paginated with cursor-based pagination, not offset pagination, given potentially large row counts at scale, especially since UPDATE now produces one row per changed field.
 
 ### Screens (Frontend)
-- **Activity feed screen:** chronological, filterable, human-readable feed (e.g., "Ahmed approved PO #1042 — SAR 3,200.00" / "أحمد وافق على أمر الشراء #1042 — 3,200.00 ريال") with category icons and a search/filter bar; accessible to OUTLET_MANAGER and above, scoped to their effective outlets per FR-00.
-- **Transaction log screen:** a finance-oriented view — every stock movement, PO, GRN, and transfer with its value, filterable by date range and type, exportable — this is the screen an owner hands to an accountant.
+- **Activity feed screen:** chronological, filterable, human-readable feed of user actions (e.g., "Ahmed approved PO #1042" / "أحمد وافق على أمر الشراء #1042") with category icons and a search/filter bar; accessible to OUTLET_MANAGER and above, scoped to their effective outlets per FR-00.
+- **Transaction log screen:** a field-level change/audit view — filterable by entity type (Item, Supplier, PO, GRN, etc.) and date range, showing exactly what changed and from/to what value on any master or transactional record; exportable — this is the screen an owner or auditor uses to answer "what happened to this specific record over time."
 - Both screens respect the RBAC field-level restrictions from FR-11 (e.g., a CHEF-scoped user, if given any log access at all, would not see cost/value figures).
 
 ### Acceptance Criteria
 - [ ] Every mutating action anywhere in the system (across all FRs) produces exactly one `ActivityLog` entry, verified via an automated test that exercises each write endpoint and asserts a corresponding log row
-- [ ] Every value-bearing transaction (stock movement, PO, GRN, transfer, sale) produces exactly one `TransactionLog` entry with a correct value/currency
-- [ ] The activity feed renders correctly localized regardless of the viewing user's language, without needing separate stored copies per language
+- [ ] Every create/update/delete on a master-data entity (Item, Supplier, Category, Recipe, Tax Rate, Currency, User access, Outlet/Property/Chain settings) or transactional entity (StockTransaction, PO, GRN, Transfer, Sale) produces the correct `TransactionLog` row(s) — one per changed field for updates, one row for creates/deletes — **regardless of whether the change carries a monetary value**
+- [ ] Actions that don't change any tracked entity (login, logout, report export) correctly produce an `ActivityLog` entry only, with no corresponding `TransactionLog` row
+- [ ] Both the activity feed and transaction log render correctly localized regardless of the viewing user's language, without needing separate stored copies per language
 - [ ] Activity/transaction log filtering correctly respects the viewer's effective outlet/property/chain scope (FR-00) — a PROPERTY_MANAGER never sees another property's log entries
 - [ ] Export produces a complete, correctly formatted file for the filtered range
 

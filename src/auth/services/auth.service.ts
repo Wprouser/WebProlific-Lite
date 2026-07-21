@@ -32,6 +32,7 @@ import { User } from '../domain/user.entity';
 import { TwoFactorAuth } from '../domain/two-factor-auth.entity';
 import { TwoFactorChallenge } from '../domain/two-factor-challenge.entity';
 import { ScopeResolutionService } from '../../tenancy/services/scope-resolution.service';
+import { ActivityBus } from '../../activity-log/services/activity-bus.service';
 import {
   LoginResponse,
   LoginSuccessResponse,
@@ -62,6 +63,7 @@ export class AuthService {
     private readonly totpService: TotpService,
     private readonly passwordService: PasswordService,
     private readonly scopeResolutionService: ScopeResolutionService,
+    private readonly activityBus: ActivityBus,
   ) {}
 
   async login(dto: LoginDto): Promise<LoginResponse> {
@@ -75,6 +77,20 @@ export class AuthService {
       !user.passwordHash ||
       !(await this.passwordService.verify(dto.password, user.passwordHash))
     ) {
+      // Only emit LOGIN_FAILED when we actually resolved a user (wrong
+      // password / inactive account for a real account) — logging an
+      // attempt against a nonexistent email would just be scan/bot noise,
+      // not the "who logged in and when" signal the spec is after.
+      if (user) {
+        await this.activityBus.record({
+          userId: user.id,
+          category: 'AUTH',
+          action: 'LOGIN_FAILED',
+          entityType: 'User',
+          entityId: user.id,
+          descriptionKey: 'activity.auth.login_failed',
+        });
+      }
       throw new UnauthorizedException('Invalid credentials');
     }
     return this.completeLoginFlow(user, dto.trustedDeviceToken);
@@ -195,7 +211,8 @@ export class AuthService {
     }
     await this.refreshTokenRepository.revoke(stored.id); // rotation: single-use
     const user = await this.getUserOrThrow(stored.userId);
-    return this.issueTokensForUser(user);
+    // false: token rotation isn't a new login — no LOGIN_SUCCESS here.
+    return this.issueTokensForUser(user, false);
   }
 
   async logout(dto: RefreshTokenDto): Promise<void> {
@@ -203,11 +220,27 @@ export class AuthService {
     const stored = await this.refreshTokenRepository.findByTokenHash(hash);
     if (stored && !stored.revokedAt) {
       await this.refreshTokenRepository.revoke(stored.id);
+      await this.activityBus.record({
+        userId: stored.userId,
+        category: 'AUTH',
+        action: 'LOGOUT',
+        entityType: 'User',
+        entityId: stored.userId,
+        descriptionKey: 'activity.auth.logout',
+      });
     }
   }
 
   async logoutAll(userId: string): Promise<void> {
     await this.refreshTokenRepository.revokeAllForUser(userId);
+    await this.activityBus.record({
+      userId,
+      category: 'AUTH',
+      action: 'LOGOUT_ALL',
+      entityType: 'User',
+      entityId: userId,
+      descriptionKey: 'activity.auth.logout_all',
+    });
   }
 
   async forgotPassword(dto: ForgotPasswordDto): Promise<{ sent: true }> {
@@ -243,6 +276,14 @@ export class AuthService {
     await this.passwordResetTokenRepository.markUsed(stored.id);
     // Resetting the password invalidates every existing session.
     await this.refreshTokenRepository.revokeAllForUser(stored.userId);
+    await this.activityBus.record({
+      userId: stored.userId,
+      category: 'AUTH',
+      action: 'PASSWORD_RESET',
+      entityType: 'User',
+      entityId: stored.userId,
+      descriptionKey: 'activity.auth.password_reset',
+    });
     return { success: true };
   }
 
@@ -312,7 +353,7 @@ export class AuthService {
     };
   }
 
-  private async issueTokensForUser(user: User): Promise<LoginSuccessResponse> {
+  private async issueTokensForUser(user: User, isNewLogin = true): Promise<LoginSuccessResponse> {
     await this.userRepository.update(user.id, { lastLoginAt: new Date() });
     const accessToken = this.tokenService.signAccessToken(user.id);
     const rawRefresh = this.tokenService.generateOpaqueToken();
@@ -321,6 +362,16 @@ export class AuthService {
       tokenHash: this.tokenService.hashOpaqueToken(rawRefresh),
       expiresAt: this.tokenService.refreshTokenExpiry(),
     });
+    if (isNewLogin) {
+      await this.activityBus.record({
+        userId: user.id,
+        category: 'AUTH',
+        action: 'LOGIN_SUCCESS',
+        entityType: 'User',
+        entityId: user.id,
+        descriptionKey: 'activity.auth.login_success',
+      });
+    }
     const access = await this.scopeResolutionService.resolveEffectiveAccess(user.id);
     return {
       accessToken,
