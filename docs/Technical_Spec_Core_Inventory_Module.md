@@ -16,9 +16,9 @@
 ```
 
 **SQL Server schema compatibility notes (read before implementing any model below):** Prisma's SQL Server connector has a few gaps versus PostgreSQL that shape how a couple of fields in this spec are modeled:
-- **No native scalar array type.** Any field that would naturally be a list (e.g., backup codes) is modeled as its own related table with one row per item, not a `String[]` field — this is actually the better long-term design anyway (each item individually queryable/updatable), so it's called out explicitly wherever it applies (see FR-13's `TwoFactorBackupCode` model).
+- **No scalar array type.** Any field that would naturally be a list (e.g., backup codes) is modeled as its own related table with one row per item, not a `String[]` field — this is actually the better long-term design anyway (each item individually queryable/updatable), so it's called out explicitly wherever it applies (see FR-13's `TwoFactorBackupCode` model).
 - **No native `Json` column type.** Fields holding structured/variable-shape data (e.g., `ActivityLog.metadata`) are modeled as `String` (mapped to `NVARCHAR(MAX)`), with the application layer doing `JSON.stringify`/`JSON.parse` at the repository boundary rather than relying on Prisma's `Json` filtering. This is called out explicitly where it applies (see FR-18).
-- **Enums are supported**, but Prisma implements them as validated string columns rather than a native SQL Server enum type (SQL Server has none) — no schema change needed, just noting that enum values are enforced at the Prisma Client layer rather than by the database engine itself, so any raw/manual data manipulation must still respect the allowed values.
+- **`enum` is not supported at all — schema validation rejects it outright when `provider = "sqlserver"`, not just lacking a native DB enum type.** Every `enum` declared in this document's Prisma model snippets (e.g., `TransactionType`, `POStatus`, `AlertType`, `AlertStatus`, `TransferStatus`, `Role`, `ScopeType`, `TwoFactorMethod`, `ActivityCategory`, `PropertyType`, `OutletType`) must be implemented as a `String` column instead, with the allowed values enforced at the application layer via a shared TypeScript union type + `class-validator` (e.g., `@IsIn([...])`) rather than a database-level enum constraint. Keep the value spellings identical to what's shown in this spec (e.g., `'PENDING_APPROVAL'`, `'WASTAGE_OUT'`) so the string values stay meaningful and consistent across every module, and centralize each set of allowed values in one shared constants/enums file per domain area (e.g., `src/tenancy/constants/enums.ts` for FR-00's scope/role enums) rather than re-declaring the same value list in multiple places.
 
 ---
 
@@ -1046,10 +1046,12 @@ A user can be invited with multiple grants at once (e.g., `OUTLET_MANAGER` at tw
 
 ---
 
-## FR-15: Multilingual Support (Localization & RTL), Launching with English & Arabic
+## FR-15: Multilingual Support (Localization & RTL), Launching with English, Arabic, Hindi, and Urdu
 
 ### Approach
-The application is architected for **any number of languages**, not just two — language packs are data-driven (JSON resource files + a `Language` registry table), so adding a new language later is a content/translation task, not a code change. **English and Arabic ship at launch** (Arabic requiring full **RTL** — right-to-left — layout, not just translated strings), with the architecture ready for additional languages (e.g., French, Urdu, Hindi, Spanish, Turkish) to be added by dropping in a new resource file and registering it, with no changes to components or business logic.
+The application is architected for **any number of languages**, not just two — language packs are data-driven (JSON resource files + a `Language` registry table), so adding a new language later is a content/translation task, not a code change. **English, Arabic, Hindi, and Urdu ship at launch** — this set is chosen deliberately for the actual target market: small hotel/restaurant back-of-house staff in the Gulf region commonly include South Asian kitchen/store workers alongside Arabic- and English-speaking management, so these four give real day-one usability rather than just an English tool with an Arabic option bolted on. Arabic and Urdu require full **RTL** — right-to-left — layout; English and Hindi are LTR. The architecture remains ready for further languages (e.g., Tagalog/Filipino, French, Spanish) to be added later by dropping in a new resource file and registering it, with no changes to components or business logic.
+
+**What actually gets translated — an important scope boundary:** every **system-generated** piece of text — navigation labels, buttons, form labels, validation messages, alert text, email/SMS notifications, report headers — switches fully and immediately when the user changes language. **User-entered business data does not** — an item name, supplier name, or note typed in by staff is stored and displayed exactly as entered, in whatever language/script it was typed in, regardless of the active UI language. Auto-translating actual business content (e.g., machine-translating "Basmati Rice" into Arabic automatically) is a different capability (real-time machine translation) and is explicitly out of scope for this FR — it could be considered as a future AI-driven feature, but must not be assumed or half-implemented here.
 
 ### Data Model
 ```prisma
@@ -1086,10 +1088,13 @@ model Language {
 | `POST` | `/languages` | Register a new language (admin/internal use when onboarding a new locale) |
 
 ### Acceptance Criteria
-- [ ] Adding a new language (e.g., French) requires only a new resource file + a `Language` row — no component or controller code changes
-- [ ] Any language flagged `direction: rtl` mirrors the entire layout automatically, not just Arabic specifically
+- [ ] All four launch languages (English, Arabic, Hindi, Urdu) are fully translated and selectable — not just English with partial translations elsewhere
+- [ ] Adding a new language beyond the launch set (e.g., French) requires only a new resource file + a `Language` row — no component or controller code changes
+- [ ] Any language flagged `direction: rtl` (Arabic, Urdu) mirrors the entire layout automatically, not just Arabic specifically
+- [ ] **The language switcher is available and fully functional on the Login screen, before authentication** — a user can change language before ever signing in, and the Login screen itself (labels, button text, error messages) re-renders fully in the selected language
+- [ ] Selecting a different language immediately re-renders **every system-generated caption, label, button, menu item, alert, and message on the current screen and every screen thereafter** — no leftover untranslated strings, and no partial-translation state where some UI elements switch and others don't
 - [ ] All system-generated notifications (alerts, PO approval emails, reports) render in the recipient's `preferredLanguage`
-- [ ] User-entered data (item names, supplier names) displays exactly as entered, untranslated, regardless of UI language
+- [ ] User-entered business data (item names, supplier names, notes) displays exactly as entered, untranslated, regardless of UI language — this is intentional and must not be "fixed" by adding auto-translation
 - [ ] Numbers, dates, and currency amounts remain correctly formatted and left-to-right even within an RTL-rendered screen
 - [ ] Missing translation keys fall back to English (never render a raw key like `alert.low_stock.title` to the user) and are logged for translator follow-up
 
@@ -1144,6 +1149,13 @@ The product's visual quality is a stated market differentiator — it should loo
 - **Micro-interactions:** meaningful transitions and feedback (e.g., a stock-count input that visibly confirms a save, a low-stock alert badge that animates in) rather than static, flat state changes — used sparingly enough that they read as polish, not distraction.
 - **Dark mode:** supported from the design-token layer outward (tokens define both light and dark values), since back-of-house staff often work in dim kitchen/storage environments.
 - **Consistency across web and mobile:** the React (web) and React Native (mobile) apps share the same design tokens and component design language, so the product feels like one product across devices, not two different apps that happen to share a backend.
+- **Fully responsive web app, not just "desktop with a mobile app on the side":** the web app itself must work cleanly across the whole range of screen sizes it'll actually be used at — a manager's desktop back-office PC, a tablet propped up in a kitchen or at a store counter, and a phone browser (for anyone who hasn't installed the PWA yet). This is not the same thing as the separate React Native mobile app — both need to exist, and both need to handle their own range of sizes well.
+  - Define a standard set of breakpoints as part of the design-token layer (e.g., `sm` ~640px, `md` ~768px, `tablet` ~1024px, `lg`/desktop ~1280px+) and use them consistently — no screen should hardcode a one-off breakpoint.
+  - **Mobile-first CSS**: base styles target the smallest viewport, with `min-width` media queries progressively enhancing the layout for larger screens — not the reverse.
+  - Data-dense screens (item lists, PO tables, reports) need an explicit **narrow-viewport strategy** decided per-screen up front (e.g., a table collapsing into stacked cards below `md`, horizontal scroll with sticky key columns, or a simplified column set) rather than just letting a wide table overflow awkwardly.
+  - Touch targets (buttons, row actions, form inputs) meet a minimum tappable size (44×44px is the common baseline) on touch-capable viewports, since tablet/phone use in a kitchen or store counter is a real, expected usage pattern here — not an edge case.
+  - The chain/property/outlet context switcher (FR-00) and any navigation chrome must have an explicit mobile pattern (e.g., collapsing into a drawer/sheet below `md`) decided as part of this FR, since it appears on every screen.
+
 - **Empty/loading/error states designed, not default:** every list/dashboard screen has a deliberately designed empty state (e.g., first-time "no items yet — add your first item" with an illustration, not a blank table), loading skeleton, and error state — these are disproportionately visible during onboarding and demos, so they matter more than their frequency suggests.
 
 ### Implementation Notes
@@ -1156,6 +1168,117 @@ The product's visual quality is a stated market differentiator — it should loo
 - [ ] Dark mode renders correctly (contrast-checked) across all core screens, not just a subset
 - [ ] Web and mobile apps are visually recognizable as the same product side-by-side
 - [ ] Every list/table screen has a designed empty state, not a blank area
+- [ ] The web app renders correctly and usably at phone, tablet, and desktop widths using the defined breakpoints — verified by resizing/testing at each breakpoint, not just at one default desktop width
+- [ ] Every data-dense screen (item lists, PO tables, reports) has a working narrow-viewport layout, not an overflowing table
+- [ ] Interactive elements meet the minimum touch-target size on touch viewports
+- [ ] The context switcher and navigation chrome have a working mobile pattern (e.g., drawer/sheet), not just a shrunk desktop layout
+
+---
+
+### Operational UX Standards
+
+This section formalizes the operational/density layer of the design system — distinct from, and layered on top of, the premium visual language (teal/charcoal palette, soft shadows, generous type scale) already established earlier in FR-17. The two are complementary: the *visual quality* stays the same everywhere; *information density* varies by screen type, since a dashboard overview and a data-entry grid have different jobs.
+
+**1. Typography scale** (concrete tokens, not just font family choices):
+| Token | Size | Weight | Use |
+|---|---|---|---|
+| `text-display` | 32px | 700 | Page-level numbers (e.g., Dashboard's focal-point count) |
+| `text-h1` | 24px | 700 | Page titles |
+| `text-h2` | 18px | 600 | Section headings, card titles |
+| `text-body` | 15px | 400 | Default body text |
+| `text-body-dense` | 13px | 400 | Dense grid rows (see Grid Standards below) |
+| `text-label` | 13px | 500 | Form labels, table headers |
+| `text-caption` | 12px | 400 | Timestamps, helper text |
+
+**2. Spacing scale**: 4px base unit — `4, 8, 12, 16, 24, 32, 48, 64px`. Every margin/padding/gap in the codebase uses one of these steps; no arbitrary pixel values.
+
+**3. Operational color-coding strategy** (extends the existing semantic tokens to be used *consistently everywhere status appears*, not just the alert bar):
+| Severity | Token | Use |
+|---|---|---|
+| Critical | `color-severity-critical` (muted red) | Stockout, GRN blocked, security/auth failure |
+| Warning | `color-severity-warning` (muted amber) | Low-stock, expiry approaching, pending approval |
+| Info | `color-severity-info` (muted blue) | Informational notices, in-progress states |
+| Success | `color-severity-success` (muted green — distinct from the teal brand accent, to avoid confusing "brand color" with "success state") | Completed actions, healthy stock levels |
+Applied consistently across: alert bar badges, table row status indicators, form validation states, and KPI card accents — one severity vocabulary used everywhere, not re-invented per screen.
+
+**4. Dashboard patterns**: two documented layouts, used per context:
+- **Overview dashboard** (e.g., the main Dashboard screen already built) — spacious, focal-point-first, for a manager checking overall health at a glance.
+- **Dense operational dashboard** — a denser variant for screens where an operator scans a lot of live data quickly (e.g., a multi-outlet overview for a Property/Chain-level user, or an active-alerts triage view) — more KPIs visible above the fold, tighter card spacing, using `text-body-dense`. Both share the same tokens/colors; only density differs.
+
+**5. Grid/table standards** — a **dense grid variant**, as a sibling to the existing `ResponsiveTable` component (not a replacement — `ResponsiveTable` remains the default for typical lists; the dense variant is opt-in for screens that need it):
+- Compact row height (~32px vs. the default's ~48px), `text-body-dense` throughout.
+- Sortable column headers, sticky header row on scroll.
+- Row hover and keyboard-focus states clearly visible (uses the operational color tokens above for any status column).
+- Still respects the narrow-viewport collapse strategy from FR-17's original responsive requirements — a dense grid on desktop still needs a usable mobile fallback.
+
+**6. Keyboard navigation strategy** (extends the `Ctrl+K`/`Esc` shortcuts already built):
+- Arrow keys move focus between rows in any data grid (dense or standard); `Enter` opens/activates the focused row; `Space` toggles a checkbox/selection if the grid supports multi-select.
+- Tab order follows visual/logical order on every screen — no keyboard traps in modals (the existing Radix-based `Modal` already handles this correctly).
+- A visible focus ring (not browser default, but not suppressed either) on every focusable element, using the teal accent token for consistency.
+
+**7. Accessibility standards**:
+- Minimum contrast ratio **4.5:1** for body text, **3:1** for large text/icons, checked against both light and dark themes — extends FR-17's existing "dark mode contrast-checked" acceptance criterion to light mode and to the new operational color tokens specifically.
+- Every interactive element has an accessible name (via visible label, `aria-label`, or `aria-labelledby`) — icon-only buttons (e.g., print/export/refresh in the Global Actions bar) are not exempt.
+- Focus order and focus visibility (point 6 above) count as accessibility requirements, not just a UX nicety.
+
+**8. Document preview pattern** (for document-heavy screens — Purchase Orders, GRNs, report exports): a reusable **split-screen layout** — live document preview on one side, a configuration panel with checkbox toggles for optional fields on the other (settings panel collapses below the preview on narrow viewports). This is the pattern FR-04's PO/GRN screens will use once built; built here as a reusable `DocumentPreviewLayout` component and demonstrated in the Styleguide with a mock document, not tied to any specific screen's real data yet.
+
+### Acceptance Criteria (Operational UX Standards)
+- [ ] Typography and spacing scales are implemented as tokens and used everywhere — no arbitrary font-size/spacing values in component code
+- [ ] The four operational severity colors are used consistently across alert badges, table status indicators, and form validation — not redefined per screen
+- [ ] Both dashboard density patterns exist and are demonstrated in the Styleguide
+- [ ] The dense grid variant exists, is keyboard-navigable (arrow keys + Enter), and has a working narrow-viewport fallback
+- [ ] Contrast ratios meet the stated minimums in both light and dark themes, verified for the new operational color tokens specifically
+- [ ] `DocumentPreviewLayout` component exists and is demonstrated with a mock document in the Styleguide
+
+---
+
+### Global App Chrome — Mandatory Elements on Every Screen
+
+Every screen in the application (web and mobile) shares a persistent shell so users never lose orientation or hunt for common actions — this formalizes the `AppShell`/`NavDrawer`/`ContextSwitcher` components already built in FR-17's foundation. This is especially important for an **operational tool used under time pressure** (a store clerk mid-delivery, a chef mid-service) — every extra click or moment of disorientation has a real cost.
+
+**1. Global Header** — present on every screen:
+```
+[Chain name] › [Property name] › [Outlet name]   |   [Date/Time]   |   [User name — effective role]
+```
+- The Chain/Property/Outlet breadcrumb *is* the FR-00 context switcher — tapping any segment opens the switcher for that level (only shown if the user has access to more than one entity at that level; a single-outlet user just sees plain text, not a dead-end dropdown).
+- Effective role (e.g., "Ahmed — Outlet Manager") is shown so it's always clear what permission level the current view reflects, especially relevant for a user with different roles at different outlets (FR-00).
+
+**2. Global Search** — present on every screen, scoped to the entities that actually exist in this application:
+```
+Search: Item | Category | Supplier | Purchase Order | GRN | Transfer | Recipe/Menu Item | User
+```
+- A single search box with type-ahead, results grouped by entity type, scoped automatically to the user's `effectiveOutletIds` (FR-00) — never surfaces data outside what the user can already access.
+- Keyboard shortcut: `/` or `Ctrl+K` (a common, discoverable convention) focuses global search from anywhere.
+
+**3. Global Alert Bar** — present on every screen, reflecting the application's actual alert-worthy states (not generic placeholders):
+```
+[Low-Stock Items] | [Expiry Warnings] | [Pending PO Approvals] | [GRN Variance Awaiting Sign-off] | [Unacknowledged Alerts]
+```
+- Sourced directly from FR-07 (Alerts) and FR-04's variance-approval workflow — this bar is a live, filtered view into the same `Alert` records and pending-approval states already modeled there, not a separate system.
+- Each badge shows a count and is clickable, jumping straight to the filtered list (e.g., clicking "Pending PO Approvals: 3" goes straight to those 3 POs) — minimizing clicks for an operator under time pressure, per the "ultra-fast operation" requirement.
+- Uses the semantic color tokens from FR-17's palette (muted amber for warning-level items like low-stock, muted red for anything requiring immediate action like GRN variance) — consistent with, not separate from, the rest of the design system's color strategy.
+
+**4. Global Actions** — present on every screen (typically top-right):
+```
+[Print] [Export] [Refresh] [Language: EN/AR ▾] [Help] [Back to Dashboard]
+```
+- **Print/Export** apply contextually to whatever the current screen shows (e.g., a report screen exports that report; a PO screen prints that PO) — not a generic action with no target.
+- **Language switcher** here is the FR-15 language selector, always reachable, not buried in a settings screen.
+- **Help** links to in-app contextual guidance for the current screen (tooltip/panel), not just a generic external help link.
+
+### Keyboard-Driven Operation (supplementary to FR-17's component library)
+Since store/kitchen staff often need to move fast without reaching for a mouse/trackpad:
+- Standardized shortcuts across the app: `/` or `Ctrl+K` (global search), `Esc` (close modal/drawer), `Ctrl+N` (new item/PO/etc., contextual to current screen), arrow keys + `Enter` for dense grid navigation (item lists, PO line items).
+- Every dense data grid (item lists, PO/GRN line entry, reports) should support keyboard-only row navigation and inline editing where applicable — this is a natural extension of the `ResponsiveTable` component already built, not a separate component.
+- Shortcuts are discoverable via the Help panel (a `?` overlay showing available shortcuts for the current screen is a common, low-effort pattern worth including).
+
+### Acceptance Criteria (Global App Chrome)
+- [ ] Every screen in the application renders the same Global Header, Search, Alert Bar, and Actions — no screen is missing any of the four
+- [ ] Global Alert Bar counts and Global Search results are correctly scoped to the viewing user's effective access (FR-00) — never leak cross-outlet/property/chain data
+- [ ] `Ctrl+K`/`/` opens global search from any screen without needing to click into a search field first
+- [ ] Language switcher in Global Actions correctly changes UI language and direction (LTR/RTL) app-wide, consistent with FR-15
+- [ ] Clicking any Global Alert Bar badge navigates directly to the correctly filtered underlying list, not a generic alerts page requiring further filtering
 
 ---
 

@@ -52,7 +52,7 @@ A single standalone restaurant simply has one chain, one property, and one outle
 - AI-driven forecasting, reorder suggestions, wastage prediction, and anomaly detection
 - Reporting and analytics dashboard
 - Role-based access control
-- Multilingual UI, launching with English and Arabic (full RTL layout), architected to add further languages without code changes
+- Multilingual UI, launching with English, Arabic, Hindi, and Urdu (Arabic/Urdu requiring full RTL layout), including a language switcher on the Login screen itself, architected to add further languages without code changes
 - Multi-currency transactions with base-currency reporting
 - System-wide Activity Log and Transaction Log for full operational and financial traceability
 
@@ -118,7 +118,7 @@ Summary table, followed by a detailed specification of each function below.
 | FR-12 | Offline mode with sync-on-reconnect (for poor-connectivity kitchens) |
 | FR-13 | User login with two-factor authentication (2FA), session management, and password reset |
 | FR-14 | User management screen (invite, assign chain/property/outlet access, deactivate) |
-| FR-15 | Multilingual UI (launching with English & Arabic, full RTL), extensible to further languages |
+| FR-15 | Multilingual UI (launching with English, Arabic, Hindi, Urdu; full RTL for Arabic/Urdu; language switcher on Login screen), extensible to further languages |
 | FR-16 | Multi-currency transactions with base-currency valuation and reporting |
 | FR-17 | Modern, polished "smart" design system applied consistently across web and mobile |
 | FR-18 | System-wide Activity Log and Transaction Log for full traceability of actions and value movements |
@@ -283,7 +283,7 @@ Summary table, followed by a detailed specification of each function below.
 | Usability | Minimal training required; onboarding under 60 minutes; modern, polished visual design consistent across web and mobile (see Section 5.2, FR-17) |
 | Portability | Responsive web + native mobile (Android priority, iOS secondary) |
 | Compliance | Local data protection regulations (e.g., India's DPDP Act); GST-ready export |
-| Localization | Multilingual by design — launches with English and Arabic (full RTL layout), architected so additional languages can be added via resource files without code changes |
+| Localization | Multilingual by design — launches with English, Arabic, Hindi, and Urdu (Arabic/Urdu requiring full RTL layout), selectable from the Login screen before authentication, architected so additional languages can be added via resource files without code changes |
 
 ---
 
