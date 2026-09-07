@@ -11,12 +11,22 @@ import { grnApi, type ApiGrn } from '@/lib/grn-api';
 import { suppliersApi, type ApiSupplier } from '@/lib/suppliers-api';
 import { itemsApi, type ApiItem } from '@/lib/items-api';
 import { openPdfBlob } from '@/lib/pdf-utils';
+import { getSession } from '@/lib/auth-store';
 import { ApiError } from '@/lib/api-client';
+
+// Same sets GrnService enforces server-side (GRN_CREATE_ROLES /
+// GRN_VARIANCE_OVERRIDE_ROLES) — mirrored here only to decide whether to
+// show the "Post Received Items" action at all, never as the real gate.
+const GRN_CREATE_ROLES = ['CHAIN_OWNER', 'PROPERTY_MANAGER', 'OUTLET_MANAGER', 'STORE_STAFF'];
+const GRN_VARIANCE_OVERRIDE_ROLES = ['CHAIN_OWNER', 'PROPERTY_MANAGER', 'OUTLET_MANAGER'];
 
 export function GrnDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const role = getSession()?.user.effectiveRole ?? '';
+  const canCreate = GRN_CREATE_ROLES.includes(role);
+  const canOverrideVariance = GRN_VARIANCE_OVERRIDE_ROLES.includes(role);
 
   const [grn, setGrn] = useState<ApiGrn | null>(null);
   const [supplier, setSupplier] = useState<ApiSupplier | null>(null);
@@ -25,6 +35,7 @@ export function GrnDetail() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
+  const [posting, setPosting] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
 
   const load = useCallback(async () => {
@@ -75,6 +86,20 @@ export function GrnDetail() {
     setGrn(updated);
   }
 
+  async function handlePost() {
+    if (!grn) return;
+    setActionError(null);
+    setPosting(true);
+    try {
+      const updated = await grnApi.post(grn.id);
+      setGrn(updated);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : t('grn.detail.impact.postError'));
+    } finally {
+      setPosting(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col gap-4">
@@ -103,6 +128,9 @@ export function GrnDetail() {
           <h1 className="font-display text-xl font-semibold text-foreground">
             {t('grn.detail.title', { id: grn.id.slice(0, 8) })}
           </h1>
+          <Badge variant={grn.status === 'POSTED' ? 'success-solid' : 'neutral'}>
+            {t(`grn.status.${grn.status}`)}
+          </Badge>
           {grn.purchaseOrderId ? (
             <Badge variant="info">{t('grn.detail.againstPo')}</Badge>
           ) : (
@@ -124,6 +152,12 @@ export function GrnDetail() {
 
       {actionError && <p className="text-sm text-danger">{actionError}</p>}
 
+      <p className="text-xs text-foreground-muted">
+        {grn.status === 'POSTED' && grn.postedAt
+          ? t('grn.detail.postedOn', { date: new Date(grn.postedAt).toLocaleString() })
+          : t('grn.detail.createdOn', { date: new Date(grn.createdAt).toLocaleString() })}
+      </p>
+
       {grn.lastEmailedAt && (
         <p className="text-xs text-foreground-muted">
           {t('documents.email.lastSent', {
@@ -131,6 +165,33 @@ export function GrnDetail() {
             recipient: grn.lastEmailedTo,
           })}
         </p>
+      )}
+
+      {grn.status === 'DRAFT' && (
+        <div className="flex flex-col gap-3 rounded-md border border-info/40 bg-info/5 p-4">
+          <div>
+            <p className="text-sm font-semibold text-foreground">{t('grn.detail.impact.title')}</p>
+            <p className="mt-1 text-sm text-foreground-muted">
+              {t('grn.detail.impact.summary', { count: grn.lines.length })}
+            </p>
+            <ul className="mt-2 flex flex-col gap-1 text-sm text-foreground">
+              {grn.lines.map((line) => (
+                <li key={line.id}>
+                  {itemName(line.itemId)}: +{line.receivedQty}
+                </li>
+              ))}
+            </ul>
+          </div>
+          {grn.varianceFlagged && !canOverrideVariance ? (
+            <p className="text-sm text-warning">{t('grn.detail.impact.varianceApprovalNeeded')}</p>
+          ) : (
+            canCreate && (
+              <Button disabled={posting} onClick={handlePost} className="self-start">
+                {posting ? t('grn.detail.impact.posting') : t('grn.detail.impact.postAction')}
+              </Button>
+            )
+          )}
+        </div>
       )}
 
       <div className="rounded-lg border border-border bg-surface p-5">

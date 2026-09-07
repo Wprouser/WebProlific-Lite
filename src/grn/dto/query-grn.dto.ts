@@ -1,4 +1,4 @@
-import { IsISO8601, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsISO8601, IsOptional, IsString } from 'class-validator';
 
 export class QueryGrnDto {
   @IsOptional()
@@ -12,6 +12,10 @@ export class QueryGrnDto {
   @IsOptional()
   @IsString()
   purchaseOrderId?: string;
+
+  @IsOptional()
+  @IsIn(['DRAFT', 'POSTED'])
+  status?: 'DRAFT' | 'POSTED';
 
   @IsOptional()
   @IsISO8601()

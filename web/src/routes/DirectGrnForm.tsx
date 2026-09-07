@@ -286,7 +286,7 @@ export function DirectGrnForm() {
               {t('purchaseOrders.form.cancel')}
             </Button>
             <Button disabled={saving || !supplierId} onClick={handleSave}>
-              {saving ? t('purchaseOrders.form.saving') : t('purchaseOrders.form.save')}
+              {saving ? t('purchaseOrders.form.saving') : t('grn.form.saveDraft')}
             </Button>
           </div>
         </div>

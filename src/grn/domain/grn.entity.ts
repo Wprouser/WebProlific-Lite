@@ -26,13 +26,18 @@ export interface GRNLine {
   taxComponents: GRNLineTaxComponent[];
 }
 
+export type GrnStatus = 'DRAFT' | 'POSTED';
+
 export interface GRN {
   id: string;
   outletId: string;
   purchaseOrderId: string | null;
   supplierId: string;
-  receivedById: string;
-  receivedAt: Date;
+  status: GrnStatus;
+  createdById: string;
+  createdAt: Date;
+  postedById: string | null;
+  postedAt: Date | null;
   currencyCode: string;
   exchangeRateToBase: string;
   isTaxInclusive: boolean;

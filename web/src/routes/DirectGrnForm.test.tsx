@@ -124,7 +124,7 @@ describe('DirectGrnForm', () => {
     await userEvent.clear(screen.getByLabelText('Other Charges'));
     await userEvent.type(screen.getByLabelText('Other Charges'), '25');
 
-    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save as Draft' }));
 
     await vi.waitFor(() =>
       expect(grnApi.createDirect).toHaveBeenCalledWith(

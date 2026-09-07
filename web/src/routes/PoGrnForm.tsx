@@ -331,7 +331,7 @@ export function PoGrnForm() {
             {t('purchaseOrders.form.cancel')}
           </Button>
           <Button disabled={saving || lines.length === 0} onClick={handleSave}>
-            {saving ? t('purchaseOrders.form.saving') : t('purchaseOrders.form.save')}
+            {saving ? t('purchaseOrders.form.saving') : t('grn.form.saveDraft')}
           </Button>
         </div>
       </div>

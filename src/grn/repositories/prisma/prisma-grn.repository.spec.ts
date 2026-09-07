@@ -26,8 +26,11 @@ function fixtureRow(overrides: Record<string, unknown> = {}) {
     outletId: 'o1',
     purchaseOrderId: null,
     supplierId: 's1',
-    receivedById: 'u1',
-    receivedAt: new Date(),
+    status: 'DRAFT',
+    createdById: 'u1',
+    createdAt: new Date(),
+    postedById: null,
+    postedAt: null,
     currencyCode: 'SAR',
     exchangeRateToBase: { toFixed: () => '1.000000' },
     isTaxInclusive: false,
@@ -51,6 +54,7 @@ describe('PrismaGrnRepository', () => {
   function buildRepository(row = fixtureRow(), itemRow: Record<string, unknown> = { currentStock: new Prisma.Decimal('10.000') }) {
     const gRNCreate = jest.fn().mockResolvedValue(row);
     const gRNFindUnique = jest.fn().mockResolvedValue(row);
+    const gRNFindUniqueOrThrow = jest.fn().mockResolvedValue(row);
     const gRNFindMany = jest.fn().mockResolvedValue([row]);
     const gRNUpdate = jest.fn().mockResolvedValue(row);
     const itemFindUniqueOrThrow = jest.fn().mockResolvedValue(itemRow);
@@ -58,16 +62,18 @@ describe('PrismaGrnRepository', () => {
     const itemUpdate = jest.fn();
     const supplierPriceHistoryCreate = jest.fn();
     const applyGrnReceipt = jest.fn();
+    const pOLineFindMany = jest.fn().mockResolvedValue([]);
     const poRepository: Partial<PurchaseOrderRepository> = { applyGrnReceipt };
 
     const txClient = {
-      gRN: { create: gRNCreate },
+      gRN: { findUniqueOrThrow: gRNFindUniqueOrThrow, update: gRNUpdate },
+      pOLine: { findMany: pOLineFindMany },
       item: { findUniqueOrThrow: itemFindUniqueOrThrow, update: itemUpdate },
       stockTransaction: { create: stockTransactionCreate },
       supplierPriceHistory: { create: supplierPriceHistoryCreate },
     };
     const prisma = {
-      gRN: { findUnique: gRNFindUnique, findMany: gRNFindMany, update: gRNUpdate },
+      gRN: { create: gRNCreate, findUnique: gRNFindUnique, findMany: gRNFindMany, update: gRNUpdate },
       $transaction: jest.fn().mockImplementation((fn: any) => fn(txClient)),
     };
     const repository = new PrismaGrnRepository(prisma as any, poRepository as PurchaseOrderRepository);
@@ -75,6 +81,7 @@ describe('PrismaGrnRepository', () => {
       repository,
       gRNCreate,
       gRNFindUnique,
+      gRNFindUniqueOrThrow,
       gRNFindMany,
       gRNUpdate,
       itemFindUniqueOrThrow,
@@ -82,13 +89,14 @@ describe('PrismaGrnRepository', () => {
       itemUpdate,
       supplierPriceHistoryCreate,
       applyGrnReceipt,
+      pOLineFindMany,
     };
   }
 
   const createInput = {
     outletId: 'o1',
     supplierId: 's1',
-    receivedById: 'u1',
+    createdById: 'u1',
     currencyCode: 'SAR',
     exchangeRateToBase: '1',
     isTaxInclusive: false,
@@ -114,9 +122,31 @@ describe('PrismaGrnRepository', () => {
   };
 
   describe('create', () => {
+    it('creates the GRN as a DRAFT, with no stock/price-history/PO side effects', async () => {
+      const { repository, stockTransactionCreate, supplierPriceHistoryCreate, applyGrnReceipt, gRNCreate } =
+        buildRepository();
+      const result = await repository.create(createInput);
+
+      expect(gRNCreate).toHaveBeenCalledTimes(1);
+      expect(stockTransactionCreate).not.toHaveBeenCalled();
+      expect(supplierPriceHistoryCreate).not.toHaveBeenCalled();
+      expect(applyGrnReceipt).not.toHaveBeenCalled();
+      expect(result.status).toBe('DRAFT');
+    });
+
+    it('serializes Decimal fields to fixed-precision strings', async () => {
+      const { repository } = buildRepository();
+      const result = await repository.create(createInput);
+      expect(result.totalValue).toBe('529.00');
+      expect(result.exchangeRateToBase).toBe('1.000000');
+      expect(result.lines[0]!.receivedQty).toBe('5.000');
+    });
+  });
+
+  describe('post', () => {
     it('AC: posts exactly one PURCHASE_IN StockTransaction per line', async () => {
       const { repository, stockTransactionCreate } = buildRepository();
-      await repository.create(createInput);
+      await repository.post('g1', 'u2');
       expect(stockTransactionCreate).toHaveBeenCalledTimes(1);
       expect(stockTransactionCreate.mock.calls[0][0].data).toMatchObject({
         itemId: 'i1',
@@ -124,19 +154,20 @@ describe('PrismaGrnRepository', () => {
         quantity: '5.000',
         referenceType: 'GRN',
         referenceId: 'g1',
+        performedById: 'u2',
       });
     });
 
     it('increases Item.currentStock by the received quantity', async () => {
       const { repository, itemUpdate } = buildRepository();
-      await repository.create(createInput);
+      await repository.post('g1', 'u2');
       // currentStock 10.000 + received 5.000 = 15.000
       expect(itemUpdate).toHaveBeenCalledWith({ where: { id: 'i1' }, data: { currentStock: '15.000' } });
     });
 
     it('AC: records exactly one SupplierPriceHistory row per line, in the GRN currency', async () => {
       const { repository, supplierPriceHistoryCreate } = buildRepository();
-      await repository.create(createInput);
+      await repository.post('g1', 'u2');
       expect(supplierPriceHistoryCreate).toHaveBeenCalledTimes(1);
       expect(supplierPriceHistoryCreate.mock.calls[0][0].data).toMatchObject({
         supplierId: 's1',
@@ -149,8 +180,10 @@ describe('PrismaGrnRepository', () => {
     });
 
     it('AC: SupplierPriceHistory.priceInBaseCurrency converts using the GRN\'s exchangeRateToBase, so cross-currency prices stay comparable', async () => {
-      const { repository, supplierPriceHistoryCreate } = buildRepository();
-      await repository.create({ ...createInput, currencyCode: 'EUR', exchangeRateToBase: '3.75' });
+      const { repository, supplierPriceHistoryCreate } = buildRepository(
+        fixtureRow({ currencyCode: 'EUR', exchangeRateToBase: { toFixed: () => '3.750000' } }),
+      );
+      await repository.post('g1', 'u2');
       expect(supplierPriceHistoryCreate.mock.calls[0][0].data).toMatchObject({
         price: '92.00',
         currencyCode: 'EUR',
@@ -158,29 +191,41 @@ describe('PrismaGrnRepository', () => {
       });
     });
 
-    it('does not touch the linked PO when purchaseOrderId is absent (Direct GRN)', async () => {
+    it('does not touch any PO when purchaseOrderId is absent (Direct GRN)', async () => {
       const { repository, applyGrnReceipt } = buildRepository();
-      await repository.create(createInput);
+      await repository.post('g1', 'u2');
       expect(applyGrnReceipt).not.toHaveBeenCalled();
     });
 
     it('AC: updates POLine.receivedQty and recomputes PO status when linked to a PO', async () => {
-      const { repository, applyGrnReceipt } = buildRepository(
-        fixtureRow({ purchaseOrderId: 'po1' }),
+      const { repository, applyGrnReceipt, pOLineFindMany } = buildRepository(
+        fixtureRow({
+          purchaseOrderId: 'po1',
+          lines: [fixtureLineRow({ orderedQty: { toFixed: () => '20.000' } })],
+        }),
       );
-      await repository.create({
-        ...createInput,
-        purchaseOrderId: 'po1',
-        lines: [{ ...createInput.lines[0]!, poLineId: 'l1', orderedQty: '20' }],
-      });
+      pOLineFindMany.mockResolvedValue([{ id: 'l1', purchaseOrderId: 'po1', itemId: 'i1' }]);
+
+      await repository.post('g1', 'u2');
       expect(applyGrnReceipt).toHaveBeenCalledWith(expect.anything(), 'po1', [
-        { poLineId: 'l1', receivedQty: '5' },
+        { poLineId: 'l1', receivedQty: '5.000' },
       ]);
+    });
+
+    it('flips status to POSTED and stamps postedById/postedAt', async () => {
+      const { repository, gRNUpdate } = buildRepository();
+      await repository.post('g1', 'u2');
+      expect(gRNUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'g1' },
+          data: expect.objectContaining({ status: 'POSTED', postedById: 'u2', postedAt: expect.any(Date) }),
+        }),
+      );
     });
 
     it('serializes Decimal fields to fixed-precision strings', async () => {
       const { repository } = buildRepository();
-      const result = await repository.create(createInput);
+      const result = await repository.post('g1', 'u2');
       expect(result.totalValue).toBe('529.00');
       expect(result.exchangeRateToBase).toBe('1.000000');
       expect(result.lines[0]!.receivedQty).toBe('5.000');
@@ -206,6 +251,12 @@ describe('PrismaGrnRepository', () => {
       const { repository, gRNFindMany } = buildRepository();
       await repository.findScoped({ accessibleOutletIds: ['o1'], supplierId: 's1', purchaseOrderId: 'po1' });
       expect(gRNFindMany.mock.calls[0][0].where).toMatchObject({ supplierId: 's1', purchaseOrderId: 'po1' });
+    });
+
+    it('filters by status when given', async () => {
+      const { repository, gRNFindMany } = buildRepository();
+      await repository.findScoped({ accessibleOutletIds: ['o1'], status: 'DRAFT' });
+      expect(gRNFindMany.mock.calls[0][0].where).toMatchObject({ status: 'DRAFT' });
     });
   });
 

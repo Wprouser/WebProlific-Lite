@@ -38,8 +38,11 @@ function fixtureGrn(overrides: Partial<GRN> = {}): GRN {
     outletId: 'o1',
     purchaseOrderId: null,
     supplierId: 's1',
-    receivedById: 'u1',
-    receivedAt: new Date(),
+    status: 'DRAFT',
+    createdById: 'u1',
+    createdAt: new Date(),
+    postedById: null,
+    postedAt: null,
     currencyCode: 'SAR',
     exchangeRateToBase: '1.000000',
     isTaxInclusive: false,
@@ -154,6 +157,11 @@ describe('GrnService', () => {
   function buildService(existingGrn: GRN = fixtureGrn(), existingPo: PurchaseOrder = fixturePO()) {
     const grnRepository: Partial<GrnRepository> = {
       create: jest.fn().mockResolvedValue(existingGrn),
+      post: jest
+        .fn()
+        .mockImplementation((_id, postedById) =>
+          Promise.resolve({ ...existingGrn, status: 'POSTED', postedById, postedAt: new Date() }),
+        ),
       findById: jest.fn().mockResolvedValue(existingGrn),
       findScoped: jest.fn().mockResolvedValue([existingGrn]),
       updateEmailSent: jest.fn().mockImplementation((_id, data) => Promise.resolve({ ...existingGrn, ...data })),
@@ -384,19 +392,10 @@ describe('GrnService', () => {
       await expect(service.createAgainstPo(fixtureRequest(), 'po1', poDto)).rejects.toThrow(ConflictException);
     });
 
-    it('AC: variance beyond tolerance flags the GRN and blocks STORE_STAFF (403)', async () => {
-      const { service } = buildService(fixtureGrn(), fixturePO());
-      // Ordered 20, received 10 -> 50% variance, well beyond the 10% default.
-      await expect(
-        service.createAgainstPo(fixtureRequest('STORE_STAFF'), 'po1', {
-          lines: [{ itemId: 'i1', receivedQty: '10', actualPrice: '87.00', taxRateId: 't1' }],
-        }),
-      ).rejects.toThrow(ForbiddenException);
-    });
-
-    it('AC: variance beyond tolerance is allowed for OUTLET_MANAGER-or-higher, with varianceFlagged set', async () => {
+    it('AC: variance beyond tolerance sets varianceFlagged, but STORE_STAFF may still draft it — the role gate applies at post(), not draft creation', async () => {
       const { service, grnRepository } = buildService(fixtureGrn(), fixturePO());
-      await service.createAgainstPo(fixtureRequest('OUTLET_MANAGER'), 'po1', {
+      // Ordered 20, received 10 -> 50% variance, well beyond the 10% default.
+      await service.createAgainstPo(fixtureRequest('STORE_STAFF'), 'po1', {
         lines: [{ itemId: 'i1', receivedQty: '10', actualPrice: '87.00', taxRateId: 't1' }],
       });
       expect(grnRepository.create).toHaveBeenCalledWith(expect.objectContaining({ varianceFlagged: true }));
@@ -418,6 +417,37 @@ describe('GrnService', () => {
           lines: [{ itemId: 'i1', receivedQty: '10', actualPrice: '87.00', taxRateId: 't1' }],
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('post', () => {
+    it('AC: "Post Received Items" flips a DRAFT GRN to POSTED', async () => {
+      const { service, grnRepository } = buildService(fixtureGrn({ status: 'DRAFT' }));
+      const result = await service.post(fixtureRequest(), 'g1');
+      expect(grnRepository.post).toHaveBeenCalledWith('g1', 'u1');
+      expect(result.status).toBe('POSTED');
+    });
+
+    it('rejects posting a GRN that has already been posted', async () => {
+      const { service } = buildService(fixtureGrn({ status: 'POSTED', postedById: 'u1', postedAt: new Date() }));
+      await expect(service.post(fixtureRequest(), 'g1')).rejects.toThrow(ConflictException);
+    });
+
+    it('AC: a variance-flagged GRN cannot be posted by STORE_STAFF (403), matching "finalize" in the spec', async () => {
+      const { service } = buildService(fixtureGrn({ varianceFlagged: true }));
+      await expect(service.post(fixtureRequest('STORE_STAFF'), 'g1')).rejects.toThrow(ForbiddenException);
+    });
+
+    it('AC: a variance-flagged GRN can be posted by OUTLET_MANAGER-or-higher', async () => {
+      const { service, grnRepository } = buildService(fixtureGrn({ varianceFlagged: true }));
+      await service.post(fixtureRequest('OUTLET_MANAGER'), 'g1');
+      expect(grnRepository.post).toHaveBeenCalled();
+    });
+
+    it('a non-variance GRN can be posted by any GRN_CREATE_ROLES member, including STORE_STAFF', async () => {
+      const { service, grnRepository } = buildService(fixtureGrn({ varianceFlagged: false }));
+      await service.post(fixtureRequest('STORE_STAFF'), 'g1');
+      expect(grnRepository.post).toHaveBeenCalled();
     });
   });
 

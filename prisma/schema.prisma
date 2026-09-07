@@ -678,8 +678,15 @@ model GRN {
   // level (spec: "a GRN can never be saved without a supplier"), not just a
   // frontend validation.
   supplierId         String
-  receivedById       String
-  receivedAt         DateTime       @default(now())
+  // 'DRAFT' | 'POSTED' — a GRN is created as a DRAFT (no stock impact yet)
+  // and only "Post Received Items" moves it to POSTED, at which point the
+  // StockTransaction/SupplierPriceHistory/POLine-receipt side effects run.
+  status             String         @default("DRAFT")
+  createdById        String
+  createdAt          DateTime       @default(now())
+  // Set only once this GRN is posted — null for a still-DRAFT GRN.
+  postedById         String?
+  postedAt           DateTime?
   // Inherited from the PO if linked, otherwise chosen directly on the GRN.
   currencyCode       String
   exchangeRateToBase Decimal        @db.Decimal(12, 6)
@@ -698,7 +705,8 @@ model GRN {
   lastEmailedAt      DateTime?
   lastEmailedTo      String?
 
-  @@index([outletId, receivedAt])
+  @@index([outletId, createdAt])
+  @@index([outletId, status])
   @@index([supplierId])
 }
 

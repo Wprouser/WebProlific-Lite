@@ -24,13 +24,18 @@ export interface ApiGrnLine {
   taxComponents: ApiGrnLineTaxComponent[];
 }
 
+export type GrnStatus = 'DRAFT' | 'POSTED';
+
 export interface ApiGrn {
   id: string;
   outletId: string;
   purchaseOrderId: string | null;
   supplierId: string;
-  receivedById: string;
-  receivedAt: string;
+  status: GrnStatus;
+  createdById: string;
+  createdAt: string;
+  postedById: string | null;
+  postedAt: string | null;
   currencyCode: string;
   exchangeRateToBase: string;
   isTaxInclusive: boolean;
@@ -96,6 +101,7 @@ export interface GrnFilters {
   outletId?: string;
   supplierId?: string;
   purchaseOrderId?: string;
+  status?: GrnStatus;
   dateFrom?: string;
   dateTo?: string;
 }
@@ -105,6 +111,7 @@ function buildQuery(filters: GrnFilters): string {
   if (filters.outletId) params.set('outletId', filters.outletId);
   if (filters.supplierId) params.set('supplierId', filters.supplierId);
   if (filters.purchaseOrderId) params.set('purchaseOrderId', filters.purchaseOrderId);
+  if (filters.status) params.set('status', filters.status);
   if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
   if (filters.dateTo) params.set('dateTo', filters.dateTo);
   const qs = params.toString();
@@ -120,6 +127,9 @@ export const grnApi = {
   createDirect: (input: CreateDirectGrnInput) => apiClient.post<ApiGrn>('/grn/direct', input),
   createAgainstPo: (poId: string, input: CreatePoGrnInput) =>
     apiClient.post<ApiGrn>(`/purchase-orders/${poId}/grn`, input),
+  /** "Post Received Items" — the only action that actually moves stock;
+   * everything up to this point only ever produces/edits a DRAFT GRN. */
+  post: (id: string) => apiClient.patch<ApiGrn>(`/grn/${id}/post`),
   getPdf: (id: string) => apiClient.getBlob(`/grn/${id}/pdf`),
   sendEmail: (id: string, input: SendEmailInput) => apiClient.post<ApiGrn>(`/grn/${id}/send-email`, input),
 };

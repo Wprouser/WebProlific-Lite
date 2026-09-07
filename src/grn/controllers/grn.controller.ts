@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req, StreamableFile } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, StreamableFile } from '@nestjs/common';
 import { GrnService } from '../services/grn.service';
 import { CreateDirectGrnDto } from '../dto/create-direct-grn.dto';
 import { CreatePoGrnDto } from '../dto/create-po-grn.dto';
@@ -43,6 +43,22 @@ export class GrnController {
       after: grn,
     });
     return grn;
+  }
+
+  @Patch('grn/:id/post')
+  async post(@Param('id') id: string, @Req() request: RequestWithAccess) {
+    const before = await this.grnService.findById(request, id);
+    const after = await this.grnService.post(request, id);
+    await this.auditLogService.record({
+      userId: request.user!.id,
+      action: 'POST_GRN',
+      entityType: 'GRN',
+      entityId: id,
+      outletId: after.outletId,
+      before,
+      after,
+    });
+    return after;
   }
 
   @Get('grn')

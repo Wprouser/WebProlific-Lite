@@ -79,7 +79,7 @@ export class GrnService {
     return this.grnRepository.create({
       outletId: dto.outletId,
       supplierId: dto.supplierId,
-      receivedById: request.user!.id,
+      createdById: request.user!.id,
       currencyCode,
       exchangeRateToBase,
       isTaxInclusive,
@@ -121,13 +121,12 @@ export class GrnService {
     const discountAmount = dto.discountAmount ?? '0.00';
     const otherChargesAmount = dto.otherChargesAmount ?? '0.00';
 
-    const { lines, varianceFlagged } = await this.buildPoLines(dto.lines, po, isTaxInclusive);
-
     // Spec: "require OUTLET_MANAGER-or-higher approval before proceeding
-    // (403 for STORE_STAFF role attempting to finalize a variance GRN)."
-    if (varianceFlagged) {
-      assertOutletAccess(request, po.outletId, [...GRN_VARIANCE_OVERRIDE_ROLES]);
-    }
+    // (403 for STORE_STAFF role attempting to finalize a variance GRN)" —
+    // enforced when the GRN is actually finalized (posted), not at draft
+    // creation; see post(). Anyone in GRN_CREATE_ROLES may draft a
+    // variance receipt, they just can't be the one who posts it.
+    const { lines, varianceFlagged } = await this.buildPoLines(dto.lines, po, isTaxInclusive);
 
     const totals = sumDocumentTotals(lines, discountAmount, otherChargesAmount);
     const scanFields = await this.resolveInvoiceScanFields(dto.invoiceScanId, po.outletId);
@@ -136,7 +135,7 @@ export class GrnService {
       outletId: po.outletId,
       purchaseOrderId: po.id,
       supplierId: po.supplierId,
-      receivedById: request.user!.id,
+      createdById: request.user!.id,
       currencyCode,
       exchangeRateToBase,
       isTaxInclusive,
@@ -162,9 +161,31 @@ export class GrnService {
       outletId: query.outletId,
       supplierId: query.supplierId,
       purchaseOrderId: query.purchaseOrderId,
+      status: query.status,
       dateFrom: query.dateFrom ? new Date(query.dateFrom) : undefined,
       dateTo: query.dateTo ? new Date(query.dateTo) : undefined,
     });
+  }
+
+  /** "Post Received Items" — spec: "the action that finalizes a GRN...
+   * creating the actual StockTransaction rows, updating Item.currentStock,
+   * and — if PO-linked — updating POLine.receivedQty/PO status." The only
+   * thing that actually moves stock; a DRAFT GRN never does. */
+  async post(request: RequestWithAccess, id: string): Promise<GRN> {
+    const grn = await this.getOrThrow(id);
+    assertOutletAccess(request, grn.outletId, [...GRN_CREATE_ROLES]);
+
+    if (grn.status !== 'DRAFT') {
+      throw new ConflictException(`GRN ${id} has already been posted`);
+    }
+
+    // Spec: "require OUTLET_MANAGER-or-higher approval before proceeding
+    // (403 for STORE_STAFF role attempting to finalize a variance GRN)."
+    if (grn.varianceFlagged) {
+      assertOutletAccess(request, grn.outletId, [...GRN_VARIANCE_OVERRIDE_ROLES]);
+    }
+
+    return this.grnRepository.post(id, request.user!.id);
   }
 
   /** Spec: "GET /grn/:id/pdf — Generate and return a formatted PDF of the
@@ -185,7 +206,7 @@ export class GrnService {
       supplierEmail: supplier?.email ?? undefined,
       currencyCode: grn.currencyCode,
       exchangeRateToBase: grn.exchangeRateToBase,
-      dateLabel: grn.receivedAt.toLocaleDateString(),
+      dateLabel: (grn.postedAt ?? grn.createdAt).toLocaleDateString(),
       lines: grn.lines.map((line, index) => ({
         itemName: items[index]?.name ?? line.itemId,
         quantity: line.receivedQty,

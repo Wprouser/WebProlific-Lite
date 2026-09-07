@@ -1,4 +1,4 @@
-import { GRN } from '../domain/grn.entity';
+import { GRN, GrnStatus } from '../domain/grn.entity';
 import { InvoiceScanStatus } from '../constants/enums';
 
 export interface CreateGrnLineTaxComponentInput {
@@ -30,7 +30,7 @@ export interface CreateGrnInput {
   outletId: string;
   purchaseOrderId?: string;
   supplierId: string;
-  receivedById: string;
+  createdById: string;
   currencyCode: string;
   exchangeRateToBase: string;
   isTaxInclusive: boolean;
@@ -53,6 +53,7 @@ export interface GrnFilters {
   outletId?: string;
   supplierId?: string;
   purchaseOrderId?: string;
+  status?: GrnStatus;
   dateFrom?: Date;
   dateTo?: Date;
 }
@@ -64,15 +65,20 @@ export interface UpdateEmailSentInput {
 
 export interface GrnRepository {
   /**
-   * Creates the GRN + lines and, atomically in the same transaction: posts a
-   * PURCHASE_IN StockTransaction per line, records a SupplierPriceHistory
-   * row per line, and — when `purchaseOrderId` is set — updates the linked
-   * POLine.receivedQty and recomputes the PurchaseOrder's status. See
-   * PrismaGrnRepository for why this crosses module boundaries (same
-   * narrow, deliberate exception as PrismaItemRepository's opening-stock
-   * path).
+   * Creates the GRN + lines only, as a DRAFT — no stock impact yet. See
+   * `post()` for the step that actually moves stock.
    */
   create(data: CreateGrnInput): Promise<GRN>;
+  /**
+   * "Post Received Items" — atomically, in one transaction: posts a
+   * PURCHASE_IN StockTransaction per line, records a SupplierPriceHistory
+   * row per line, and — when the GRN is PO-linked — updates the linked
+   * POLine.receivedQty and recomputes the PurchaseOrder's status, then
+   * flips the GRN itself from DRAFT to POSTED. See PrismaGrnRepository for
+   * why this crosses module boundaries (same narrow, deliberate exception
+   * as PrismaItemRepository's opening-stock path).
+   */
+  post(id: string, postedById: string): Promise<GRN>;
   findById(id: string): Promise<GRN | null>;
   findScoped(filters: GrnFilters): Promise<GRN[]>;
   /** Spec: "Every successful send-email call is recorded, including

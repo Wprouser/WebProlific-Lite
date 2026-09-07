@@ -10,8 +10,10 @@ import { TokenService } from '../src/auth/services/token.service';
  * Exercises FR-04's GRN creation flows end-to-end: Direct (Flow 1) and
  * Against-a-PO (Flow 2) — Scan Invoice (Flow 3) is Stage 6, a separate
  * suite. Covers tax/currency/adjustment computation (shared with PO), the
- * variance-tolerance + approval gate, StockTransaction/SupplierPriceHistory
- * side effects, PO status recomputation, and FR-18 wiring.
+ * DRAFT-then-"Post Received Items" lifecycle, the variance-tolerance +
+ * approval gate (enforced at posting, not draft creation), the
+ * StockTransaction/SupplierPriceHistory side effects that only happen once
+ * posted, PO status recomputation, and FR-18 wiring.
  * Requires: docker compose up -d && npx prisma migrate deploy && npm run test:e2e
  */
 describe('GRN (FR-04) e2e', () => {
@@ -134,6 +136,7 @@ describe('GRN (FR-04) e2e', () => {
         .expect(201);
 
       expect(res.body.purchaseOrderId).toBeNull();
+      expect(res.body.status).toBe('DRAFT');
       expect(res.body.subtotal).toBe('460.00');
       expect(res.body.taxAmount).toBe('69.00');
       expect(res.body.totalValue).toBe('529.00');
@@ -172,15 +175,42 @@ describe('GRN (FR-04) e2e', () => {
         .expect(400);
     });
 
-    it('AC: every finalized GRN line results in exactly one StockTransaction and one SupplierPriceHistory row', async () => {
+    it('AC: a GRN can be saved as a Draft without triggering stock transactions; only "Post Received Items" creates them', async () => {
       const { outletId, supplierId, itemId } = await setupOutlet();
-      const { token } = await actor('owner4@example.com', 'OUTLET', outletId, 'OUTLET_MANAGER');
+      const { token } = await actor('owner4x@example.com', 'OUTLET', outletId, 'OUTLET_MANAGER');
 
-      await api()
+      const created = await api()
         .post('/api/v1/grn/direct')
         .set('Authorization', `Bearer ${token}`)
         .send({ outletId, supplierId, lines: [{ itemId, receivedQty: '5', actualPrice: '92.00' }] })
         .expect(201);
+      expect(created.body.status).toBe('DRAFT');
+
+      expect(await prisma.stockTransaction.findMany({ where: { itemId } })).toHaveLength(0);
+      const beforePost = await prisma.item.findUniqueOrThrow({ where: { id: itemId } });
+      expect(beforePost.currentStock.toFixed(3)).toBe('10.000'); // unchanged
+
+      const posted = await api()
+        .patch(`/api/v1/grn/${created.body.id}/post`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(posted.body.status).toBe('POSTED');
+
+      expect(await prisma.stockTransaction.findMany({ where: { itemId } })).toHaveLength(1);
+      const afterPost = await prisma.item.findUniqueOrThrow({ where: { id: itemId } });
+      expect(afterPost.currentStock.toFixed(3)).toBe('15.000'); // 10 + 5
+    });
+
+    it('AC: every finalized GRN line results in exactly one StockTransaction and one SupplierPriceHistory row', async () => {
+      const { outletId, supplierId, itemId } = await setupOutlet();
+      const { token } = await actor('owner4@example.com', 'OUTLET', outletId, 'OUTLET_MANAGER');
+
+      const created = await api()
+        .post('/api/v1/grn/direct')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ outletId, supplierId, lines: [{ itemId, receivedQty: '5', actualPrice: '92.00' }] })
+        .expect(201);
+      await api().patch(`/api/v1/grn/${created.body.id}/post`).set('Authorization', `Bearer ${token}`).expect(200);
 
       const stockTxs = await prisma.stockTransaction.findMany({ where: { itemId } });
       expect(stockTxs).toHaveLength(1);
@@ -197,7 +227,7 @@ describe('GRN (FR-04) e2e', () => {
       const { outletId, supplierId, itemId } = await setupOutlet('SAR');
       const { token } = await actor('owner4b@example.com', 'OUTLET', outletId, 'OUTLET_MANAGER');
 
-      await api()
+      const created = await api()
         .post('/api/v1/grn/direct')
         .set('Authorization', `Bearer ${token}`)
         .send({
@@ -208,6 +238,7 @@ describe('GRN (FR-04) e2e', () => {
           lines: [{ itemId, receivedQty: '5', actualPrice: '92.00' }],
         })
         .expect(201);
+      await api().patch(`/api/v1/grn/${created.body.id}/post`).set('Authorization', `Bearer ${token}`).expect(200);
 
       const priceHistory = await prisma.supplierPriceHistory.findMany({ where: { itemId, supplierId } });
       expect(priceHistory).toHaveLength(1);
@@ -218,18 +249,32 @@ describe('GRN (FR-04) e2e', () => {
       expect(priceHistory[0]?.priceInBaseCurrency?.toFixed(2)).toBe('345.00');
     });
 
-    it('increases Item.currentStock by the received quantity', async () => {
+    it('increases Item.currentStock by the received quantity once posted', async () => {
       const { outletId, supplierId, itemId } = await setupOutlet();
       const { token } = await actor('owner5@example.com', 'OUTLET', outletId, 'OUTLET_MANAGER');
 
-      await api()
+      const created = await api()
         .post('/api/v1/grn/direct')
         .set('Authorization', `Bearer ${token}`)
         .send({ outletId, supplierId, lines: [{ itemId, receivedQty: '5', actualPrice: '92.00' }] })
         .expect(201);
+      await api().patch(`/api/v1/grn/${created.body.id}/post`).set('Authorization', `Bearer ${token}`).expect(200);
 
       const updated = await prisma.item.findUniqueOrThrow({ where: { id: itemId } });
       expect(updated.currentStock.toFixed(3)).toBe('15.000'); // 10 + 5
+    });
+
+    it('rejects posting the same GRN twice', async () => {
+      const { outletId, supplierId, itemId } = await setupOutlet();
+      const { token } = await actor('owner5b@example.com', 'OUTLET', outletId, 'OUTLET_MANAGER');
+
+      const created = await api()
+        .post('/api/v1/grn/direct')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ outletId, supplierId, lines: [{ itemId, receivedQty: '5', actualPrice: '92.00' }] })
+        .expect(201);
+      await api().patch(`/api/v1/grn/${created.body.id}/post`).set('Authorization', `Bearer ${token}`).expect(200);
+      await api().patch(`/api/v1/grn/${created.body.id}/post`).set('Authorization', `Bearer ${token}`).expect(409);
     });
 
     it('AC: an Other Charges amount is included in totalValue', async () => {
@@ -324,6 +369,7 @@ describe('GRN (FR-04) e2e', () => {
         .expect(201);
 
       expect(res.body.purchaseOrderId).toBe(poId);
+      expect(res.body.status).toBe('DRAFT');
       expect(res.body.varianceFlagged).toBe(false);
     });
 
@@ -340,7 +386,24 @@ describe('GRN (FR-04) e2e', () => {
         .expect(400);
     });
 
-    it('AC: variance beyond tolerance blocks STORE_STAFF from finalizing (403), but not OUTLET_MANAGER', async () => {
+    it('AC: variance beyond tolerance sets varianceFlagged on the draft — anyone in GRN_CREATE_ROLES may still draft it', async () => {
+      const { outletId, supplierId, itemId } = await setupOutlet();
+      const owner = await actor('owner10b@example.com', 'OUTLET', outletId, 'OUTLET_MANAGER');
+      const poId = await createAndApprovePo(owner.token, outletId, supplierId, itemId, '20');
+      await api().patch(`/api/v1/purchase-orders/${poId}/send`).set('Authorization', `Bearer ${owner.token}`).expect(200);
+
+      const staff = await actor('staff3b@example.com', 'OUTLET', outletId, 'STORE_STAFF');
+      // Ordered 20, received 10 -> 50% variance, beyond the 10% default tolerance.
+      const res = await api()
+        .post(`/api/v1/purchase-orders/${poId}/grn`)
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ lines: [{ itemId, receivedQty: '10', actualPrice: '87.00' }] })
+        .expect(201);
+      expect(res.body.status).toBe('DRAFT');
+      expect(res.body.varianceFlagged).toBe(true);
+    });
+
+    it('AC: variance beyond tolerance blocks STORE_STAFF from posting (403), but not OUTLET_MANAGER — "finalize" is the post step', async () => {
       const { outletId, supplierId, itemId } = await setupOutlet();
       const owner = await actor('owner10@example.com', 'OUTLET', outletId, 'OUTLET_MANAGER');
       const poId = await createAndApprovePo(owner.token, outletId, supplierId, itemId, '20');
@@ -348,21 +411,26 @@ describe('GRN (FR-04) e2e', () => {
 
       const staff = await actor('staff3@example.com', 'OUTLET', outletId, 'STORE_STAFF');
       // Ordered 20, received 10 -> 50% variance, beyond the 10% default tolerance.
-      await api()
+      const created = await api()
         .post(`/api/v1/purchase-orders/${poId}/grn`)
         .set('Authorization', `Bearer ${staff.token}`)
         .send({ lines: [{ itemId, receivedQty: '10', actualPrice: '87.00' }] })
+        .expect(201);
+
+      await api()
+        .patch(`/api/v1/grn/${created.body.id}/post`)
+        .set('Authorization', `Bearer ${staff.token}`)
         .expect(403);
 
       const res = await api()
-        .post(`/api/v1/purchase-orders/${poId}/grn`)
+        .patch(`/api/v1/grn/${created.body.id}/post`)
         .set('Authorization', `Bearer ${owner.token}`)
-        .send({ lines: [{ itemId, receivedQty: '10', actualPrice: '87.00' }] })
-        .expect(201);
+        .expect(200);
+      expect(res.body.status).toBe('POSTED');
       expect(res.body.varianceFlagged).toBe(true);
     });
 
-    it('AC: recomputes PO status to PARTIALLY_RECEIVED then FULLY_RECEIVED as GRNs are finalized', async () => {
+    it('AC: recomputes PO status to PARTIALLY_RECEIVED then FULLY_RECEIVED as GRNs are posted, not merely drafted', async () => {
       const { outletId, supplierId, itemId } = await setupOutlet();
       const { token } = await actor('owner11@example.com', 'OUTLET', outletId, 'OUTLET_MANAGER');
       const poId = await createAndApprovePo(token, outletId, supplierId, itemId, '20');
@@ -370,20 +438,27 @@ describe('GRN (FR-04) e2e', () => {
 
       // Within-tolerance partial receipt (18/20 = 10% variance, at the edge
       // but not beyond it) — no approval gate should trigger.
-      await api()
+      const first = await api()
         .post(`/api/v1/purchase-orders/${poId}/grn`)
         .set('Authorization', `Bearer ${token}`)
         .send({ lines: [{ itemId, receivedQty: '18', actualPrice: '87.00' }] })
         .expect(201);
 
+      // Still a draft — the PO must not have moved yet.
       let po = await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: poId } });
+      expect(po.status).toBe('SENT_TO_SUPPLIER');
+
+      await api().patch(`/api/v1/grn/${first.body.id}/post`).set('Authorization', `Bearer ${token}`).expect(200);
+
+      po = await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: poId } });
       expect(po.status).toBe('PARTIALLY_RECEIVED');
 
-      await api()
+      const second = await api()
         .post(`/api/v1/purchase-orders/${poId}/grn`)
         .set('Authorization', `Bearer ${token}`)
         .send({ lines: [{ itemId, receivedQty: '2', actualPrice: '87.00' }] })
         .expect(201);
+      await api().patch(`/api/v1/grn/${second.body.id}/post`).set('Authorization', `Bearer ${token}`).expect(200);
 
       po = await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: poId } });
       expect(po.status).toBe('FULLY_RECEIVED');
@@ -428,6 +503,24 @@ describe('GRN (FR-04) e2e', () => {
 
       const txLog = await prisma.transactionLog.findMany({ where: { entityId: created.body.id } });
       expect(txLog.length).toBeGreaterThan(0);
+    });
+
+    it('AC: produces a POST_GRN ActivityLog entry when Received Items are posted', async () => {
+      const { outletId, supplierId, itemId } = await setupOutlet();
+      const { token, userId } = await actor('audit1b@example.com', 'OUTLET', outletId, 'OUTLET_MANAGER');
+
+      const created = await api()
+        .post('/api/v1/grn/direct')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ outletId, supplierId, lines: [{ itemId, receivedQty: '5', actualPrice: '92.00' }] })
+        .expect(201);
+      await api().patch(`/api/v1/grn/${created.body.id}/post`).set('Authorization', `Bearer ${token}`).expect(200);
+
+      const activity = await prisma.activityLog.findFirst({
+        where: { action: 'POST_GRN', entityId: created.body.id },
+      });
+      expect(activity).not.toBeNull();
+      expect(activity?.userId).toBe(userId);
     });
 
     it('produces an ActivityLog entry for Against-PO GRN creation', async () => {

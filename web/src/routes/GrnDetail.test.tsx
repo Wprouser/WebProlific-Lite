@@ -10,7 +10,10 @@ import { setSession } from '@/lib/auth-store';
 
 vi.mock('@/lib/grn-api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/grn-api')>('@/lib/grn-api');
-  return { ...actual, grnApi: { ...actual.grnApi, get: vi.fn(), getPdf: vi.fn(), sendEmail: vi.fn() } };
+  return {
+    ...actual,
+    grnApi: { ...actual.grnApi, get: vi.fn(), getPdf: vi.fn(), sendEmail: vi.fn(), post: vi.fn() },
+  };
 });
 vi.mock('@/lib/suppliers-api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/suppliers-api')>('@/lib/suppliers-api');
@@ -27,8 +30,11 @@ const baseGrn: ApiGrn = {
   outletId: 'o1',
   purchaseOrderId: null,
   supplierId: 's1',
-  receivedById: 'u1',
-  receivedAt: '2026-01-01T00:00:00.000Z',
+  status: 'POSTED',
+  createdById: 'u1',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  postedById: 'u1',
+  postedAt: '2026-01-01T00:05:00.000Z',
   currencyCode: 'SAR',
   exchangeRateToBase: '1',
   isTaxInclusive: false,
@@ -44,6 +50,21 @@ const baseGrn: ApiGrn = {
   lines: [],
   lastEmailedAt: null,
   lastEmailedTo: null,
+};
+
+const draftLine = {
+  id: 'gl1',
+  grnId: 'g1',
+  itemId: 'i1',
+  orderedQty: null,
+  receivedQty: '5.000',
+  actualPrice: '92.00',
+  taxRateId: null,
+  taxRate: '0.00',
+  lineSubtotal: '460.00',
+  lineTaxAmount: '0.00',
+  lineTotal: '460.00',
+  taxComponents: [],
 };
 
 function renderScreen() {
@@ -114,5 +135,85 @@ describe('GrnDetail screen', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
     await vi.waitFor(() => expect(grnApi.sendEmail).toHaveBeenCalledWith('g1', expect.anything()));
     expect(await screen.findByText(/supplier@example\.com/)).toBeInTheDocument();
+  });
+
+  describe('DRAFT lifecycle', () => {
+    it('AC: shows the Inventory Impact preview and a Post Received Items action for a DRAFT GRN', async () => {
+      (grnApi.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ...baseGrn,
+        status: 'DRAFT',
+        postedById: null,
+        postedAt: null,
+        lines: [draftLine],
+      });
+      renderScreen();
+      await screen.findByText('Al-Fahad Trading');
+
+      expect(screen.getByText('Draft')).toBeInTheDocument();
+      expect(screen.getByText('Inventory Impact Preview')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Post Received Items' })).toBeInTheDocument();
+    });
+
+    it('AC: posting calls the post endpoint and reflects the resulting POSTED status', async () => {
+      (grnApi.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ...baseGrn,
+        status: 'DRAFT',
+        postedById: null,
+        postedAt: null,
+        lines: [draftLine],
+      });
+      (grnApi.post as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ...baseGrn,
+        status: 'POSTED',
+        lines: [draftLine],
+      });
+      renderScreen();
+      await screen.findByText('Al-Fahad Trading');
+
+      await userEvent.click(screen.getByRole('button', { name: 'Post Received Items' }));
+      await vi.waitFor(() => expect(grnApi.post).toHaveBeenCalledWith('g1'));
+      expect(await screen.findByText('Posted')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Post Received Items' })).not.toBeInTheDocument();
+    });
+
+    it('hides the post action (shows an approval-needed note instead) for a variance-flagged draft when the role cannot override it', async () => {
+      setSession({
+        accessToken: 'token',
+        refreshToken: 'refresh-token',
+        user: { id: 'u1', email: 'test@example.com', preferredLanguage: 'en', effectiveRole: 'STORE_STAFF', effectiveOutletIds: ['o1'], effectivePropertyIds: [], effectiveChainIds: [] },
+      });
+      (grnApi.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ...baseGrn,
+        status: 'DRAFT',
+        postedById: null,
+        postedAt: null,
+        varianceFlagged: true,
+        lines: [draftLine],
+      });
+      renderScreen();
+      await screen.findByText('Al-Fahad Trading');
+
+      expect(screen.queryByRole('button', { name: 'Post Received Items' })).not.toBeInTheDocument();
+      expect(
+        screen.getByText('This GRN has a quantity variance and needs manager approval before it can be posted.'),
+      ).toBeInTheDocument();
+    });
+
+    it('surfaces the server error when posting fails', async () => {
+      const { ApiError } = await vi.importActual<typeof import('@/lib/api-client')>('@/lib/api-client');
+      (grnApi.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ...baseGrn,
+        status: 'DRAFT',
+        postedById: null,
+        postedAt: null,
+        lines: [draftLine],
+      });
+      (grnApi.post as ReturnType<typeof vi.fn>).mockRejectedValue(new ApiError(409, 'GRN has already been posted'));
+      renderScreen();
+      await screen.findByText('Al-Fahad Trading');
+
+      await userEvent.click(screen.getByRole('button', { name: 'Post Received Items' }));
+      expect(await screen.findByText('GRN has already been posted')).toBeInTheDocument();
+    });
   });
 });

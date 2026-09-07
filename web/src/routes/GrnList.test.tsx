@@ -27,8 +27,11 @@ const sampleGrn: ApiGrn = {
   outletId: 'o1',
   purchaseOrderId: null,
   supplierId: 's1',
-  receivedById: 'u1',
-  receivedAt: '2026-01-01T00:00:00.000Z',
+  status: 'POSTED',
+  createdById: 'u1',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  postedById: 'u1',
+  postedAt: '2026-01-01T00:05:00.000Z',
   currencyCode: 'SAR',
   exchangeRateToBase: '1',
   isTaxInclusive: false,
@@ -65,13 +68,24 @@ describe('GrnList screen', () => {
     (suppliersApi.list as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: 's1', name: 'Al-Fahad Trading' }]);
   });
 
-  it('lists GRNs with supplier name, source badge, and total', async () => {
+  it('lists GRNs with supplier name, source badge, status, and total', async () => {
     (grnApi.list as ReturnType<typeof vi.fn>).mockResolvedValue([sampleGrn]);
     renderScreen();
 
     expect(await screen.findByRole('cell', { name: 'Al-Fahad Trading' })).toBeInTheDocument();
     expect(screen.getByText('Direct')).toBeInTheDocument();
+    expect(screen.getByText('Posted')).toBeInTheDocument();
     expect(screen.getByRole('cell', { name: 'SAR 529.00' })).toBeInTheDocument();
+  });
+
+  it('shows a Draft status badge for a still-unposted GRN', async () => {
+    (grnApi.list as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { ...sampleGrn, status: 'DRAFT', postedById: null, postedAt: null },
+    ]);
+    renderScreen();
+
+    await screen.findByRole('cell', { name: 'Al-Fahad Trading' });
+    expect(screen.getByText('Draft')).toBeInTheDocument();
   });
 
   it('shows an "Against PO" badge and a variance badge when applicable', async () => {

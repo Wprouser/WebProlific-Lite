@@ -6,7 +6,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { GRN, GRNLine, GRNLineTaxComponent } from '../../domain/grn.entity';
+import { GRN, GRNLine, GRNLineTaxComponent, GrnStatus } from '../../domain/grn.entity';
 import { InvoiceScanStatus } from '../../constants/enums';
 import { CreateGrnInput, CreateGrnLineInput, GrnFilters, GrnRepository, UpdateEmailSentInput } from '../grn.repository';
 import { applyStockTransaction } from '../../../stock-transactions/lib/apply-stock-transaction';
@@ -52,8 +52,11 @@ function toDomain(row: PrismaGRNRow): GRN {
     outletId: row.outletId,
     purchaseOrderId: row.purchaseOrderId,
     supplierId: row.supplierId,
-    receivedById: row.receivedById,
-    receivedAt: row.receivedAt,
+    status: row.status as GrnStatus,
+    createdById: row.createdById,
+    createdAt: row.createdAt,
+    postedById: row.postedById,
+    postedAt: row.postedAt,
     currencyCode: row.currencyCode,
     exchangeRateToBase: row.exchangeRateToBase.toFixed(6),
     isTaxInclusive: row.isTaxInclusive,
@@ -99,8 +102,8 @@ function toLineCreateData(lines: CreateGrnLineInput[]) {
 }
 
 /**
- * GRN finalization touches four different modules' tables — GRN/GRNLine
- * (its own), StockTransaction + Item.currentStock (via the shared
+ * Posting a GRN touches four different modules' tables — GRN itself,
+ * StockTransaction + Item.currentStock (via the shared
  * `applyStockTransaction` plain function), SupplierPriceHistory (via the
  * shared `recordSupplierPriceHistory` plain function), and — when linked to
  * a PO — POLine.receivedQty + PurchaseOrder.status (via
@@ -120,19 +123,26 @@ export class PrismaGrnRepository implements GrnRepository {
     @Inject(PURCHASE_ORDER_REPOSITORY) private readonly poRepository: PurchaseOrderRepository,
   ) {}
 
+  /** Creates the GRN + lines only, as a DRAFT — no stock/PO/price-history
+   * side effects. Those only happen once `post()` is called. */
   async create(data: CreateGrnInput): Promise<GRN> {
+    const { lines, ...rest } = data;
+    const grn = await this.prisma.gRN.create({
+      data: { ...rest, lines: { create: toLineCreateData(lines) } },
+      include: INCLUDE_LINES,
+    });
+    return toDomain(grn);
+  }
+
+  async post(id: string, postedById: string): Promise<GRN> {
     const row = await this.prisma.$transaction(
       async (tx) => {
-        const { lines, ...rest } = data;
-        const grn = await tx.gRN.create({
-          data: { ...rest, lines: { create: toLineCreateData(lines) } },
-          include: INCLUDE_LINES,
-        });
+        const grn = await tx.gRN.findUniqueOrThrow({ where: { id }, include: INCLUDE_LINES });
 
         for (const line of grn.lines) {
           const item = await tx.item.findUniqueOrThrow({ where: { id: line.itemId } });
           const outcome = await applyStockTransaction(tx, {
-            outletId: data.outletId,
+            outletId: grn.outletId,
             itemId: line.itemId,
             type: 'PURCHASE_IN',
             quantity: line.receivedQty.toFixed(3),
@@ -140,7 +150,7 @@ export class PrismaGrnRepository implements GrnRepository {
             referenceType: 'GRN',
             referenceId: grn.id,
             reasonCode: null,
-            performedById: data.receivedById,
+            performedById: postedById,
             allowNegativeBalance: false,
           });
           if (!outcome.ok) {
@@ -151,23 +161,35 @@ export class PrismaGrnRepository implements GrnRepository {
           }
 
           await recordSupplierPriceHistory(tx, {
-            supplierId: data.supplierId,
+            supplierId: grn.supplierId,
             itemId: line.itemId,
             price: line.actualPrice.toFixed(2),
-            currencyCode: data.currencyCode,
-            exchangeRateToBase: data.exchangeRateToBase,
+            currencyCode: grn.currencyCode,
+            exchangeRateToBase: grn.exchangeRateToBase.toFixed(6),
             source: 'GRN',
           });
         }
 
-        if (data.purchaseOrderId) {
-          const receipts = lines
-            .filter((l) => l.poLineId)
-            .map((l) => ({ poLineId: l.poLineId!, receivedQty: l.receivedQty }));
-          await this.poRepository.applyGrnReceipt(tx, data.purchaseOrderId, receipts);
+        if (grn.purchaseOrderId) {
+          // GRNLine has no poLineId column of its own (see create()'s
+          // caller) — re-derived here by matching on itemId, the same
+          // at-most-one-PO-line-per-item assumption GrnService.buildPoLines
+          // already relies on.
+          const poLines = await tx.pOLine.findMany({ where: { purchaseOrderId: grn.purchaseOrderId } });
+          const receipts = grn.lines
+            .map((line) => {
+              const poLine = poLines.find((pl) => pl.itemId === line.itemId);
+              return poLine ? { poLineId: poLine.id, receivedQty: line.receivedQty.toFixed(3) } : null;
+            })
+            .filter((r): r is { poLineId: string; receivedQty: string } => r !== null);
+          await this.poRepository.applyGrnReceipt(tx, grn.purchaseOrderId, receipts);
         }
 
-        return grn;
+        return tx.gRN.update({
+          where: { id },
+          data: { status: 'POSTED', postedById, postedAt: new Date() },
+          include: INCLUDE_LINES,
+        });
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
@@ -187,14 +209,15 @@ export class PrismaGrnRepository implements GrnRepository {
       outletId: filters.outletId ?? { in: filters.accessibleOutletIds },
       ...(filters.supplierId && { supplierId: filters.supplierId }),
       ...(filters.purchaseOrderId && { purchaseOrderId: filters.purchaseOrderId }),
+      ...(filters.status && { status: filters.status }),
       ...((filters.dateFrom || filters.dateTo) && {
-        receivedAt: { gte: filters.dateFrom, lte: filters.dateTo },
+        createdAt: { gte: filters.dateFrom, lte: filters.dateTo },
       }),
     };
 
     const rows = await this.prisma.gRN.findMany({
       where,
-      orderBy: { receivedAt: 'desc' },
+      orderBy: { createdAt: 'desc' },
       include: INCLUDE_LINES,
     });
     return rows.map(toDomain);

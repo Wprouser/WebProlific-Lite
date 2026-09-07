@@ -401,7 +401,7 @@ describe('Low-Stock & Expiry Alerts (FR-07) e2e', () => {
       data: {
         outletId: ctx.outlet.id,
         supplierId: ctx.supplier.id,
-        receivedById: userId,
+        createdById: userId,
         currencyCode: 'SAR',
         exchangeRateToBase: '1',
         isTaxInclusive: false,

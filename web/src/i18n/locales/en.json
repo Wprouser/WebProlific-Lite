@@ -773,12 +773,17 @@
     "list": {
       "loadError": "Couldn't load GRNs",
       "source": "Source",
-      "receivedAt": "Received",
+      "status": "Status",
+      "date": "Date",
       "empty": {
         "title": "No GRNs yet",
         "description": "Record your first goods-received note against a purchase order, directly, or by scanning an invoice.",
         "action": "New GRN"
       }
+    },
+    "status": {
+      "DRAFT": "Draft",
+      "POSTED": "Posted"
     },
     "new": {
       "title": "New GRN",
@@ -800,7 +805,8 @@
     "form": {
       "loadError": "Couldn't load",
       "saveError": "Couldn't save. Please try again.",
-      "invoiceNumber": "Invoice Number"
+      "invoiceNumber": "Invoice Number",
+      "saveDraft": "Save as Draft"
     },
     "scan": {
       "uploadPrompt": "Upload a photo or PDF of the supplier invoice",
@@ -833,7 +839,18 @@
       "loadError": "Couldn't load this GRN",
       "againstPo": "Against PO",
       "direct": "Direct",
-      "varianceFlagged": "Variance"
+      "varianceFlagged": "Variance",
+      "postedOn": "Posted on {{date}}",
+      "createdOn": "Created {{date}}",
+      "impact": {
+        "title": "Inventory Impact Preview",
+        "summary_one": "Posting this GRN will add stock for {{count}} item:",
+        "summary_other": "Posting this GRN will add stock for {{count}} items:",
+        "postAction": "Post Received Items",
+        "posting": "Posting…",
+        "postError": "Couldn't post this GRN. Please try again.",
+        "varianceApprovalNeeded": "This GRN has a quantity variance and needs manager approval before it can be posted."
+      }
     }
   },
   "documents": {

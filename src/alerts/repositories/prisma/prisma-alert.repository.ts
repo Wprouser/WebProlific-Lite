@@ -154,7 +154,10 @@ export class PrismaAlertRepository implements AlertRepository {
       this.prisma.purchaseOrder.count({
         where: { outletId: outletFilter, status: 'PENDING_APPROVAL' },
       }),
-      this.prisma.gRN.count({ where: { outletId: outletFilter, varianceFlagged: true } }),
+      // Only still-DRAFT variance GRNs need this badge — once posted, an
+      // OUTLET_MANAGER-or-higher has already exercised the required
+      // approval (see GrnService.post), so it's no longer pending anything.
+      this.prisma.gRN.count({ where: { outletId: outletFilter, varianceFlagged: true, status: 'DRAFT' } }),
     ]);
 
     return { lowStock, expiry, unacknowledged, poApprovals, grnVariance };

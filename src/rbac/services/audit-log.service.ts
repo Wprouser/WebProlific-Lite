@@ -89,6 +89,10 @@ const UPDATE_ACTION_OVERRIDES = new Set([
   // Same reasoning — emailing a PO/GRN updates lastEmailedAt/lastEmailedTo.
   'EMAIL_PURCHASE_ORDER',
   'EMAIL_GRN',
+  // Posting a GRN mutates status/postedById/postedAt (plus the stock/PO
+  // side effects that produce their own separate StockTransaction/PO
+  // TransactionLog rows) — same "finalize"-style naming as the PO actions.
+  'POST_GRN',
   // FR-08: dispatch/receive/cancel all mutate StockTransfer's status (plus
   // dispatchedById/receivedById/timestamps) but aren't named with an
   // UPDATE_ prefix, for the same activity-feed-readability reason as the PO

@@ -101,8 +101,9 @@ export function GrnList() {
               <tr>
                 <th className="px-4 py-3">{t('purchaseOrders.list.supplier')}</th>
                 <th className="px-4 py-3">{t('grn.list.source')}</th>
+                <th className="px-4 py-3">{t('grn.list.status')}</th>
                 <th className="px-4 py-3">{t('purchaseOrders.list.total')}</th>
-                <th className="px-4 py-3">{t('grn.list.receivedAt')}</th>
+                <th className="px-4 py-3">{t('grn.list.date')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -125,10 +126,17 @@ export function GrnList() {
                       </Badge>
                     )}
                   </td>
+                  <td className="px-4 py-3">
+                    <Badge variant={grn.status === 'POSTED' ? 'success-solid' : 'neutral'}>
+                      {t(`grn.status.${grn.status}`)}
+                    </Badge>
+                  </td>
                   <td className="px-4 py-3 font-medium">
                     {grn.currencyCode} {grn.totalValue}
                   </td>
-                  <td className="px-4 py-3 text-foreground-muted">{new Date(grn.receivedAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-foreground-muted">
+                    {new Date(grn.postedAt ?? grn.createdAt).toLocaleDateString()}
+                  </td>
                 </tr>
               ))}
             </tbody>
