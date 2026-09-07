@@ -11,6 +11,13 @@ export const PO_STATUSES = [
 ] as const;
 export type POStatus = (typeof PO_STATUSES)[number];
 
+// FR-01/FR-03's item/supplier deactivation gate: "check for any
+// PurchaseOrder with status not in [Closed, Cancelled, Rejected]
+// referencing this item/supplier." Everything else — including
+// FULLY_RECEIVED, which hasn't been explicitly closed yet — counts as
+// still "open" for this rule.
+export const PO_NON_OPEN_STATUSES = ['CLOSED', 'REJECTED', 'CANCELLED'] as const;
+
 // RBAC permission matrix (FR-11): "Create PO" allows everyone except CHEF.
 export const PO_CREATE_ROLES = ['CHAIN_OWNER', 'PROPERTY_MANAGER', 'OUTLET_MANAGER', 'STORE_STAFF'] as const;
 

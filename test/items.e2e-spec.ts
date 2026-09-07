@@ -52,6 +52,9 @@ describe('Item Master (FR-01) e2e', () => {
     // is a real FK — so alerts clear before the items they point at.
     await prisma.alert.deleteMany();
     await prisma.stockTransaction.deleteMany();
+    await prisma.pOLineTaxComponent.deleteMany();
+    await prisma.pOLine.deleteMany();
+    await prisma.purchaseOrder.deleteMany();
     await prisma.item.deleteMany();
     await prisma.category.deleteMany();
     await prisma.unitOfMeasure.deleteMany();
@@ -329,6 +332,47 @@ describe('Item Master (FR-01) e2e', () => {
       where: { entityId: created.body.id, action: 'DEACTIVATE_ITEM' },
     });
     expect(activityRows).toHaveLength(1);
+  });
+
+  it('AC: deactivating an item with an open purchase order returns 409, not silent failure', async () => {
+    const { outlet } = await chainWithOutlet();
+    const cat = await category(outlet.id);
+    const unit = await unitOfMeasure(outlet.id);
+    const { token } = await actor('owner6b@example.com', 'OUTLET', outlet.id, 'OUTLET_MANAGER');
+    const item = await api()
+      .post('/api/v1/items')
+      .set('Authorization', `Bearer ${token}`)
+      .send(itemPayload({ outletId: outlet.id, categoryId: cat.id, unitId: unit.id, sku: 'RICE-PO-001' }))
+      .expect(201);
+    const supplier = await prisma.supplier.create({ data: { outletId: outlet.id, name: 'Al-Fahad Trading' } });
+    const po = await api()
+      .post('/api/v1/purchase-orders')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        outletId: outlet.id,
+        supplierId: supplier.id,
+        lines: [{ itemId: item.body.id, orderedQty: '5', expectedPrice: '10.00' }],
+      })
+      .expect(201);
+
+    // A DRAFT PO is not Closed/Cancelled/Rejected, so it still counts as open.
+    await api()
+      .delete(`/api/v1/items/${item.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(409);
+
+    await api().patch(`/api/v1/purchase-orders/${po.body.id}/submit`).set('Authorization', `Bearer ${token}`).expect(200);
+    await api()
+      .patch(`/api/v1/purchase-orders/${po.body.id}/reject`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ reason: 'no longer needed' })
+      .expect(200);
+
+    const deactivated = await api()
+      .delete(`/api/v1/items/${item.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(deactivated.body.isActive).toBe(false);
   });
 
   // ---------------------------------------------------------------------

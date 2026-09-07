@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { ITEM_REPOSITORY, CATEGORY_REPOSITORY, UNIT_OF_MEASURE_REPOSITORY } from '../repositories/tokens';
 import { ItemRepository } from '../repositories/item.repository';
 import { CategoryRepository } from '../repositories/category.repository';
@@ -13,6 +14,8 @@ import { SUPPLIER_REPOSITORY } from '../../suppliers/repositories/tokens';
 import { SupplierRepository } from '../../suppliers/repositories/supplier.repository';
 import { TAX_RATE_REPOSITORY } from '../../tax-rates/repositories/tokens';
 import { TaxRateRepository } from '../../tax-rates/repositories/tax-rate.repository';
+import { PURCHASE_ORDER_REPOSITORY } from '../../purchase-orders/repositories/tokens';
+import { PurchaseOrderRepository } from '../../purchase-orders/repositories/purchase-order.repository';
 import { ItemsFileFormatError, parseItemsFile } from '../lib/parse-items-file';
 import { BulkImportNameLookups, ResolvedBulkImportRow, validateBulkImportRow } from '../lib/validate-bulk-import-row';
 
@@ -36,6 +39,14 @@ export class ItemsService {
     @Inject(UNIT_OF_MEASURE_REPOSITORY) private readonly unitRepository: UnitOfMeasureRepository,
     @Inject(SUPPLIER_REPOSITORY) private readonly supplierRepository: SupplierRepository,
     @Inject(TAX_RATE_REPOSITORY) private readonly taxRateRepository: TaxRateRepository,
+    // Not a constructor @Inject: PurchaseOrdersModule already reaches
+    // ItemsModule through more than one path (directly, and via
+    // TenancyModule -> StockTransactionsModule -> ItemsModule), so a
+    // static import edge the other way (ItemsModule -> PurchaseOrdersModule)
+    // closes a multi-hop cycle forwardRef() can't cleanly resolve here.
+    // ModuleRef reads the whole app's DI container instead of this
+    // module's own import graph, so no module wiring change is needed.
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   async create(request: RequestWithAccess, dto: CreateItemDto): Promise<Item> {
@@ -190,16 +201,15 @@ export class ItemsService {
     return this.itemRepository.update(id, { isActive: false });
   }
 
-  /**
-   * Spec's business rule: block deactivation if an open (not Closed/
-   * Cancelled/Rejected) PurchaseOrder references this item. PurchaseOrder
-   * doesn't exist yet — FR-04 isn't built — so this is a no-op today.
-   * Kept as its own method (rather than a comment) so the call site is
-   * already correct; implementing FR-04 should only mean filling this
-   * body in, not hunting for where the check belongs.
-   */
-  private async assertNoOpenPurchaseOrders(_itemId: string): Promise<void> {
-    return;
+  /** Spec's business rule: block deactivation if an open (not Closed/
+   * Cancelled/Rejected) PurchaseOrder references this item. */
+  private async assertNoOpenPurchaseOrders(itemId: string): Promise<void> {
+    const purchaseOrderRepository = this.moduleRef.get<PurchaseOrderRepository>(PURCHASE_ORDER_REPOSITORY, {
+      strict: false,
+    });
+    if (await purchaseOrderRepository.hasOpenPurchaseOrderForItem(itemId)) {
+      throw new ConflictException('Cannot deactivate item with open purchase orders');
+    }
   }
 
   async list(request: RequestWithAccess, query: QueryItemsDto): Promise<Item[]> {

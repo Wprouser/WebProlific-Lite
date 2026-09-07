@@ -47,13 +47,14 @@ describe('PrismaPurchaseOrderRepository', () => {
   function buildRepository(rows: ReturnType<typeof fixtureRow>[] = []) {
     const findMany = jest.fn().mockResolvedValue(rows);
     const findUnique = jest.fn();
+    const findFirst = jest.fn().mockResolvedValue(null);
     const create = jest.fn().mockResolvedValue(fixtureRow());
     const update = jest.fn().mockResolvedValue(fixtureRow());
     const pOLineFindMany = jest.fn().mockResolvedValue([]);
     const pOLineDeleteMany = jest.fn().mockResolvedValue({ count: 0 });
     const pOLineTaxComponentDeleteMany = jest.fn().mockResolvedValue({ count: 0 });
     const prisma = {
-      purchaseOrder: { findMany, findUnique, create, update },
+      purchaseOrder: { findMany, findUnique, findFirst, create, update },
       pOLine: { findMany: pOLineFindMany, deleteMany: pOLineDeleteMany },
       pOLineTaxComponent: { deleteMany: pOLineTaxComponentDeleteMany },
       $transaction: jest.fn().mockImplementation((fn: any) =>
@@ -65,7 +66,17 @@ describe('PrismaPurchaseOrderRepository', () => {
       ),
     };
     const repository = new PrismaPurchaseOrderRepository(prisma as any);
-    return { repository, findMany, findUnique, create, update, pOLineFindMany, pOLineDeleteMany, pOLineTaxComponentDeleteMany };
+    return {
+      repository,
+      findMany,
+      findUnique,
+      findFirst,
+      create,
+      update,
+      pOLineFindMany,
+      pOLineDeleteMany,
+      pOLineTaxComponentDeleteMany,
+    };
   }
 
   describe('create', () => {
@@ -259,6 +270,32 @@ describe('PrismaPurchaseOrderRepository', () => {
         data: { lastEmailedAt: sentAt, lastEmailedTo: 'supplier@example.com' },
         include: expect.anything(),
       });
+    });
+  });
+
+  describe('hasOpenPurchaseOrderForItem', () => {
+    it('AC: queries for a PO referencing the item whose status is not Closed/Rejected/Cancelled', async () => {
+      const { repository, findFirst } = buildRepository();
+      await repository.hasOpenPurchaseOrderForItem('i1');
+      expect(findFirst).toHaveBeenCalledWith({
+        where: {
+          status: { notIn: ['CLOSED', 'REJECTED', 'CANCELLED'] },
+          lines: { some: { itemId: 'i1' } },
+        },
+        select: { id: true },
+      });
+    });
+
+    it('returns true when a matching open PO exists', async () => {
+      const { repository, findFirst } = buildRepository();
+      findFirst.mockResolvedValue({ id: 'po1' });
+      await expect(repository.hasOpenPurchaseOrderForItem('i1')).resolves.toBe(true);
+    });
+
+    it('returns false when no matching open PO exists', async () => {
+      const { repository, findFirst } = buildRepository();
+      findFirst.mockResolvedValue(null);
+      await expect(repository.hasOpenPurchaseOrderForItem('i1')).resolves.toBe(false);
     });
   });
 });

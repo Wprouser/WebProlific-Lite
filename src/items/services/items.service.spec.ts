@@ -5,6 +5,8 @@ import { CategoryRepository } from '../repositories/category.repository';
 import { UnitOfMeasureRepository } from '../repositories/unit-of-measure.repository';
 import { SupplierRepository } from '../../suppliers/repositories/supplier.repository';
 import { TaxRateRepository } from '../../tax-rates/repositories/tax-rate.repository';
+import { PurchaseOrderRepository } from '../../purchase-orders/repositories/purchase-order.repository';
+import { ModuleRef } from '@nestjs/core';
 import { Item } from '../domain/item.entity';
 import { RequestWithAccess } from '../../tenancy/types/request-with-access';
 
@@ -78,14 +80,29 @@ describe('ItemsService', () => {
     const taxRateRepository: Partial<TaxRateRepository> = {
       findScoped: jest.fn().mockResolvedValue([]),
     };
+    const purchaseOrderRepository: Partial<PurchaseOrderRepository> = {
+      hasOpenPurchaseOrderForItem: jest.fn().mockResolvedValue(false),
+    };
+    const moduleRef: Partial<ModuleRef> = {
+      get: jest.fn().mockReturnValue(purchaseOrderRepository),
+    };
     const service = new ItemsService(
       itemRepository as ItemRepository,
       categoryRepository as CategoryRepository,
       unitRepository as UnitOfMeasureRepository,
       supplierRepository as SupplierRepository,
       taxRateRepository as TaxRateRepository,
+      moduleRef as ModuleRef,
     );
-    return { service, itemRepository, categoryRepository, unitRepository, supplierRepository, taxRateRepository };
+    return {
+      service,
+      itemRepository,
+      categoryRepository,
+      unitRepository,
+      supplierRepository,
+      taxRateRepository,
+      purchaseOrderRepository,
+    };
   }
 
   const createDto = {
@@ -172,6 +189,20 @@ describe('ItemsService', () => {
 
   it('softDelete sets isActive false and does not touch currentStock', async () => {
     const { service, itemRepository } = buildService();
+    await service.softDelete(fixtureRequest(), 'i1');
+    expect(itemRepository.update).toHaveBeenCalledWith('i1', { isActive: false });
+  });
+
+  it('AC: deactivating an item with an open purchase order returns 409, not silent failure', async () => {
+    const { service, itemRepository, purchaseOrderRepository } = buildService();
+    (purchaseOrderRepository.hasOpenPurchaseOrderForItem as jest.Mock).mockResolvedValue(true);
+    await expect(service.softDelete(fixtureRequest(), 'i1')).rejects.toThrow(ConflictException);
+    expect(itemRepository.update).not.toHaveBeenCalled();
+  });
+
+  it('allows deactivating an item whose purchase orders are all Closed/Rejected/Cancelled', async () => {
+    const { service, itemRepository, purchaseOrderRepository } = buildService();
+    (purchaseOrderRepository.hasOpenPurchaseOrderForItem as jest.Mock).mockResolvedValue(false);
     await service.softDelete(fixtureRequest(), 'i1');
     expect(itemRepository.update).toHaveBeenCalledWith('i1', { isActive: false });
   });

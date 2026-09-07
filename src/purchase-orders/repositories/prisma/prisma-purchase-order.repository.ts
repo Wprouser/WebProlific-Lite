@@ -7,7 +7,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { PurchaseOrder, POLine, POLineTaxComponent } from '../../domain/purchase-order.entity';
-import { POStatus } from '../../constants/enums';
+import { POStatus, PO_NON_OPEN_STATUSES } from '../../constants/enums';
 import {
   ApplyGrnReceiptLineInput,
   CreatePOLineInput,
@@ -199,5 +199,16 @@ export class PrismaPurchaseOrderRepository implements PurchaseOrderRepository {
   async updateEmailSent(id: string, data: UpdateEmailSentInput): Promise<PurchaseOrder> {
     const row = await this.prisma.purchaseOrder.update({ where: { id }, data, include: INCLUDE_LINES });
     return toDomain(row);
+  }
+
+  async hasOpenPurchaseOrderForItem(itemId: string): Promise<boolean> {
+    const match = await this.prisma.purchaseOrder.findFirst({
+      where: {
+        status: { notIn: [...PO_NON_OPEN_STATUSES] },
+        lines: { some: { itemId } },
+      },
+      select: { id: true },
+    });
+    return match !== null;
   }
 }

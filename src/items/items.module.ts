@@ -29,6 +29,17 @@ import { PrismaUnitOfMeasureRepository } from './repositories/prisma/prisma-unit
   // optional defaultSupplier/defaultTaxRate by name against the outlet's
   // existing rows. One-directional — neither module imports ItemsModule
   // back, so there's no cycle (same precedent as GrnModule).
+  //
+  // PurchaseOrdersModule is deliberately NOT imported here even though
+  // ItemsService needs PURCHASE_ORDER_REPOSITORY (see its constructor) —
+  // PurchaseOrdersModule already reaches ItemsModule through more than one
+  // path (directly, and via TenancyModule -> StockTransactionsModule ->
+  // ItemsModule), so adding this edge closes a multi-hop cycle that
+  // forwardRef() could not cleanly resolve (tried and reverted — Nest's
+  // scanner corrupted an unrelated import in the cycle at boot). Instead,
+  // ItemsService resolves PURCHASE_ORDER_REPOSITORY lazily via ModuleRef,
+  // which reads the whole app's DI container rather than this module's own
+  // import graph.
   imports: [RbacModule, StorageModule, SuppliersModule, TaxRatesModule],
   // CategoriesController/UnitsController registered before ItemsController
   // — see CategoriesController's doc comment (GET/POST items/categories and

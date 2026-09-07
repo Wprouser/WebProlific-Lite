@@ -102,4 +102,7 @@ export interface PurchaseOrderRepository {
   /** Spec: "Every successful send-email call is recorded, including
    * timestamp and recipient, viewable from the PO/GRN detail screen." */
   updateEmailSent(id: string, data: UpdateEmailSentInput): Promise<PurchaseOrder>;
+  /** FR-01's item-deactivation gate: "check for any PurchaseOrder with
+   * status not in [Closed, Cancelled, Rejected] referencing this item." */
+  hasOpenPurchaseOrderForItem(itemId: string): Promise<boolean>;
 }
