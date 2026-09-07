@@ -151,7 +151,9 @@
     "ariaLabel": "Chain, property, and outlet context",
     "switchProperty": "Switch property",
     "switchOutlet": "Switch outlet",
-    "none": "No organization access yet"
+    "none": "No organization access yet",
+    "viewEntireProperty": "View entire property",
+    "allOutlets": "All outlets"
   },
   "search": {
     "title": "Global search",
@@ -1166,5 +1168,8 @@
       "baseCurrencyPlaceholder": "Select a currency",
       "poApprovalThresholdPlaceholder": "No threshold"
     }
+  },
+  "unsavedWork": {
+    "confirmDiscard": "You have unsaved changes in {{label}}. Discard them and continue?"
   }
 }

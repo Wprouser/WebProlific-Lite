@@ -110,7 +110,11 @@ export const itemsApi = {
 };
 
 export const categoriesApi = {
-  list: () => apiClient.get<ApiCategory[]>('/items/categories'),
+  // outletId was always supported server-side (QueryCategoriesDto) — never
+  // exposed here until Category/UnitOfMeasure needed to follow the same
+  // Context Switcher scoping as Item itself (both are outlet-scoped 1:1
+  // master data, not shared across outlets).
+  list: (outletId?: string) => apiClient.get<ApiCategory[]>(`/items/categories${outletId ? `?outletId=${outletId}` : ''}`),
   create: (name: string, outletId: string) => apiClient.post<ApiCategory>('/items/categories', { name, outletId }),
 };
 

@@ -16,7 +16,6 @@ import {
   type ApiSkippedLine,
 } from '@/lib/sales-api';
 import { menuItemsApi, type ApiMenuItem } from '@/lib/menu-items-api';
-import { getSession } from '@/lib/auth-store';
 import { ApiError } from '@/lib/api-client';
 
 /**
@@ -32,7 +31,6 @@ export function SalesImportReview() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const outletId = getSession()?.user.effectiveOutletIds[0];
 
   // Handed over by the upload step; only present on the first render after
   // uploading, which is the only time it's meaningful.
@@ -51,14 +49,19 @@ export function SalesImportReview() {
     setLoading(true);
     setError(null);
     try {
-      setReview(await salesApi.reviewBatch(batchId));
-      if (outletId) setMenuItems(await menuItemsApi.list({ outletId }).catch(() => []));
+      const reviewResult = await salesApi.reviewBatch(batchId);
+      setReview(reviewResult);
+      // The batch's own outlet, not the header Context Switcher's current
+      // selection — this page always reviews one specific, already-fixed
+      // batch, so its menu-item matching must reflect where that batch was
+      // actually uploaded for.
+      setMenuItems(await menuItemsApi.list({ outletId: reviewResult.batch.outletId }).catch(() => []));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('sales.import.loadError'));
     } finally {
       setLoading(false);
     }
-  }, [batchId, outletId, t]);
+  }, [batchId, t]);
 
   useEffect(() => {
     load();

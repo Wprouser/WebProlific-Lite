@@ -6,6 +6,8 @@ import { chainsApi, type ApiChainHierarchy } from '@/lib/chains-api';
 import { propertiesApi, type ApiPropertyWithOutlets } from '@/lib/properties-api';
 import { outletsApi, type ApiOutletWithHierarchyNames } from '@/lib/outlets-api';
 import { setSession } from '@/lib/auth-store';
+import { clearSelectedContext, getSelectedContext } from '@/lib/selected-context-store';
+import { setUnsavedWork, clearUnsavedWork } from '@/lib/unsaved-work-registry';
 
 vi.mock('@/lib/chains-api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/chains-api')>('@/lib/chains-api');
@@ -97,6 +99,8 @@ function desktopNav() {
 describe('ContextSwitcher', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearSelectedContext();
+    clearUnsavedWork();
   });
 
   it('AC: CHAIN_OWNER path shows the chain name, defaulting to the caller\'s own outlet', async () => {
@@ -174,5 +178,98 @@ describe('ContextSwitcher', () => {
     asMock(outletsApi.listAccessible).mockResolvedValue([]);
     render(<ContextSwitcher />);
     expect(await screen.findByText('No organization access yet')).toBeInTheDocument();
+  });
+
+  it('AC: persists the selection so other screens (useSelectedContext) see it', async () => {
+    sessionAs('CHAIN_OWNER', { chainIds: ['c1'], outletIds: ['o1'] });
+    asMock(chainsApi.getHierarchy).mockResolvedValue(fixtureHierarchy());
+    render(<ContextSwitcher />);
+
+    await screen.findByText('Jeddah Hotel');
+    await userEvent.click(desktopNav().getByRole('button', { name: 'Main Restaurant' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Pool Bar' }));
+
+    expect(getSelectedContext()).toEqual({ level: 'outlet', outletId: 'o2', propertyId: 'p1' });
+  });
+
+  it('AC: establishes a persisted default on first load, even with no user interaction', async () => {
+    sessionAs('CHAIN_OWNER', { chainIds: ['c1'], outletIds: ['o3'] });
+    asMock(chainsApi.getHierarchy).mockResolvedValue(fixtureHierarchy());
+    render(<ContextSwitcher />);
+
+    await screen.findByText('Riyadh Hotel');
+    expect(getSelectedContext()).toEqual({ level: 'outlet', outletId: 'o3', propertyId: 'p2' });
+  });
+
+  it('AC: repairs a stale persisted selection (an outlet that no longer exists) rather than getting stuck', async () => {
+    sessionAs('CHAIN_OWNER', { chainIds: ['c1'], outletIds: ['o1'] });
+    localStorage.setItem(
+      'webprolific.selectedContext',
+      JSON.stringify({ level: 'outlet', outletId: 'ghost-outlet', propertyId: 'ghost-property' }),
+    );
+    asMock(chainsApi.getHierarchy).mockResolvedValue(fixtureHierarchy());
+    render(<ContextSwitcher />);
+
+    await screen.findByText('Jeddah Hotel');
+    expect(getSelectedContext()).toEqual({ level: 'outlet', outletId: 'o1', propertyId: 'p1' });
+  });
+
+  it('AC: a CHAIN_OWNER/PROPERTY_MANAGER can select "view entire property"', async () => {
+    sessionAs('CHAIN_OWNER', { chainIds: ['c1'], outletIds: ['o1'] });
+    asMock(chainsApi.getHierarchy).mockResolvedValue(fixtureHierarchy());
+    render(<ContextSwitcher />);
+
+    await screen.findByText('Jeddah Hotel');
+    await userEvent.click(desktopNav().getByRole('button', { name: 'Main Restaurant' }));
+    await userEvent.click(screen.getByRole('button', { name: 'View entire property' }));
+
+    expect(await desktopNav().findByText('All outlets')).toBeInTheDocument();
+    expect(getSelectedContext()).toEqual({ level: 'property', outletId: 'o1', propertyId: 'p1' });
+  });
+
+  it('does not offer "view entire property" for a role below PROPERTY_MANAGER', async () => {
+    sessionAs('STORE_STAFF', { outletIds: ['o1'] });
+    const outlets: ApiOutletWithHierarchyNames[] = [
+      { id: 'o1', propertyId: 'p1', chainId: 'c1', name: 'Main Restaurant', type: 'RESTAURANT', baseCurrency: 'SAR', poApprovalThreshold: null, isActive: true, propertyName: 'Jeddah Hotel', chainName: 'Al Waha Hospitality Group' },
+      { id: 'o2', propertyId: 'p1', chainId: 'c1', name: 'Pool Bar', type: 'BAR', baseCurrency: 'SAR', poApprovalThreshold: null, isActive: true, propertyName: 'Jeddah Hotel', chainName: 'Al Waha Hospitality Group' },
+    ];
+    asMock(outletsApi.listAccessible).mockResolvedValue(outlets);
+    render(<ContextSwitcher />);
+
+    await screen.findByText('Jeddah Hotel');
+    await userEvent.click(desktopNav().getByRole('button', { name: 'Main Restaurant' }));
+    expect(screen.queryByRole('button', { name: 'View entire property' })).not.toBeInTheDocument();
+  });
+
+  it('AC: switching outlet while unsaved work is registered asks for confirmation first', async () => {
+    sessionAs('CHAIN_OWNER', { chainIds: ['c1'], outletIds: ['o1'] });
+    asMock(chainsApi.getHierarchy).mockResolvedValue(fixtureHierarchy());
+    setUnsavedWork('New Transfer');
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<ContextSwitcher />);
+
+    await screen.findByText('Jeddah Hotel');
+    await userEvent.click(desktopNav().getByRole('button', { name: 'Main Restaurant' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Pool Bar' }));
+
+    expect(confirmSpy).toHaveBeenCalledWith('You have unsaved changes in New Transfer. Discard them and continue?');
+    // Declined — the selection must not have changed.
+    expect(getSelectedContext()).toEqual({ level: 'outlet', outletId: 'o1', propertyId: 'p1' });
+    confirmSpy.mockRestore();
+  });
+
+  it('AC: confirming the prompt lets the switch through', async () => {
+    sessionAs('CHAIN_OWNER', { chainIds: ['c1'], outletIds: ['o1'] });
+    asMock(chainsApi.getHierarchy).mockResolvedValue(fixtureHierarchy());
+    setUnsavedWork('New Transfer');
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<ContextSwitcher />);
+
+    await screen.findByText('Jeddah Hotel');
+    await userEvent.click(desktopNav().getByRole('button', { name: 'Main Restaurant' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Pool Bar' }));
+
+    expect(getSelectedContext()).toEqual({ level: 'outlet', outletId: 'o2', propertyId: 'p1' });
+    confirmSpy.mockRestore();
   });
 });

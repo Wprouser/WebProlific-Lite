@@ -13,6 +13,7 @@ import { SupplierFormModal } from '@/components/suppliers/SupplierFormModal';
 import { suppliersApi, type ApiSupplier } from '@/lib/suppliers-api';
 import { currenciesApi, type ApiCurrency } from '@/lib/currencies-api';
 import { getSession } from '@/lib/auth-store';
+import { useSelectedContext } from '@/lib/selected-context-store';
 import { ApiError } from '@/lib/api-client';
 
 type StatusFilter = 'active' | 'inactive' | 'all';
@@ -27,7 +28,7 @@ const MUTATE_ROLES = ['CHAIN_OWNER', 'PROPERTY_MANAGER', 'OUTLET_MANAGER'];
 export function Suppliers() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const outletId = getSession()?.user.effectiveOutletIds[0];
+  const { outletId } = useSelectedContext();
   const canMutate = MUTATE_ROLES.includes(getSession()?.user.effectiveRole ?? '');
 
   const [loading, setLoading] = useState(true);
@@ -47,6 +48,7 @@ export function Suppliers() {
     setError(null);
     try {
       const result = await suppliersApi.list({
+        outletId: outletId || undefined,
         isActive: statusFilter === 'all' ? undefined : statusFilter === 'active',
         search: search.trim() || undefined,
       });
@@ -56,7 +58,7 @@ export function Suppliers() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, search, t]);
+  }, [outletId, statusFilter, search, t]);
 
   // Debounced so free-text search doesn't fire a request per keystroke.
   useEffect(() => {

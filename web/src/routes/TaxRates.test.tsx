@@ -86,7 +86,7 @@ describe('TaxRates screen', () => {
     (taxRatesApi.list as ReturnType<typeof vi.fn>).mockResolvedValue([activeRate]);
     renderScreen();
     await screen.findAllByText('VAT 15%');
-    expect(taxRatesApi.list).toHaveBeenCalledWith();
+    expect(taxRatesApi.list).toHaveBeenCalledWith(expect.not.objectContaining({ isActive: expect.anything() }));
   });
 
   it('AC: deactivating shows a plain confirmation when other active rates remain', async () => {

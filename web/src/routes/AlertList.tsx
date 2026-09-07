@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { alertsApi, type AlertType, type ApiAlert } from '@/lib/alerts-api';
-import { getSession } from '@/lib/auth-store';
+import { useSelectedContext } from '@/lib/selected-context-store';
 import { ApiError } from '@/lib/api-client';
 
 /**
@@ -41,7 +41,7 @@ export function AlertList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { type } = useParams<{ type: string }>();
-  const outletId = getSession()?.user.effectiveOutletIds[0];
+  const { outletId } = useSelectedContext();
 
   const [alerts, setAlerts] = useState<ApiAlert[]>([]);
   const [loading, setLoading] = useState(true);

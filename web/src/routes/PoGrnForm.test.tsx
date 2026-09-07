@@ -7,6 +7,7 @@ import { suppliersApi } from '@/lib/suppliers-api';
 import { itemsApi, unitsApi } from '@/lib/items-api';
 import { taxRatesApi } from '@/lib/tax-rates-api';
 import { setSession } from '@/lib/auth-store';
+import { clearUnsavedWork, getUnsavedWork } from '@/lib/unsaved-work-registry';
 
 vi.mock('@/lib/purchase-orders-api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/purchase-orders-api')>('@/lib/purchase-orders-api');
@@ -84,6 +85,7 @@ function renderScreen(poId?: string) {
 describe('PoGrnForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearUnsavedWork();
     setSession({
       accessToken: 'token',
       refreshToken: 'refresh-token',
@@ -129,5 +131,34 @@ describe('PoGrnForm', () => {
     renderScreen('po1');
 
     expect(await screen.findByText("This purchase order can no longer be received against.")).toBeInTheDocument();
+  });
+
+  it('AC: a pre-selected PO scopes unit reference data to *that PO\'s own outlet*, not the currently selected one', async () => {
+    // Session/selection default to 'o1'; the pre-selected PO belongs to 'o2'.
+    (purchaseOrdersApi.get as ReturnType<typeof vi.fn>).mockResolvedValue({ ...fixturePO, outletId: 'o2' });
+    (suppliersApi.get as ReturnType<typeof vi.fn>).mockResolvedValue(supplier);
+    renderScreen('po1');
+
+    await screen.findByText('Al-Fahad Trading');
+    expect(unitsApi.list).toHaveBeenCalledWith({ outletId: 'o2' });
+    expect(unitsApi.list).not.toHaveBeenCalledWith({ outletId: 'o1' });
+  });
+
+  it('AC: registers no unsaved work on the bare picker screen, but does once a PO is pre-selected', async () => {
+    (purchaseOrdersApi.list as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (suppliersApi.list as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    const { unmount } = renderScreen();
+    await screen.findByText('Choose a Purchase Order');
+    expect(getUnsavedWork()).toBeNull();
+    unmount();
+
+    (purchaseOrdersApi.get as ReturnType<typeof vi.fn>).mockResolvedValue(fixturePO);
+    (suppliersApi.get as ReturnType<typeof vi.fn>).mockResolvedValue(supplier);
+    const { unmount: unmountWithPo } = renderScreen('po1');
+    await screen.findByText('Al-Fahad Trading');
+    expect(getUnsavedWork()).toEqual({ label: 'Choose a Purchase Order' });
+
+    unmountWithPo();
+    expect(getUnsavedWork()).toBeNull();
   });
 });

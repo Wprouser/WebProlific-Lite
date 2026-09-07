@@ -10,7 +10,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { NeedsYieldBadge } from '@/components/menu-items/NeedsYieldBadge';
 import { menuItemsApi, type ApiMenuItem } from '@/lib/menu-items-api';
-import { getSession } from '@/lib/auth-store';
+import { useSelectedContext } from '@/lib/selected-context-store';
 import { ApiError } from '@/lib/api-client';
 
 /**
@@ -24,7 +24,7 @@ import { ApiError } from '@/lib/api-client';
 export function MenuItems() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const outletId = getSession()?.user.effectiveOutletIds[0];
+  const { outletId } = useSelectedContext();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

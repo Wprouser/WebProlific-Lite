@@ -14,7 +14,8 @@ import { suppliersApi, type ApiSupplier } from '@/lib/suppliers-api';
 import { itemsApi, unitsApi, type ApiItem, type ApiUnitOfMeasure } from '@/lib/items-api';
 import { taxRatesApi, type ApiTaxRate } from '@/lib/tax-rates-api';
 import { previewDocumentTotals, previewLineTax } from '@/lib/document-tax-preview';
-import { getSession } from '@/lib/auth-store';
+import { useSelectedContext } from '@/lib/selected-context-store';
+import { useUnsavedWorkGuard } from '@/lib/unsaved-work-registry';
 import { ApiError } from '@/lib/api-client';
 
 const POLL_INTERVAL_MS = 700;
@@ -31,7 +32,7 @@ const MAX_POLL_ATTEMPTS = 30;
 export function ScanInvoiceGrnForm() {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const outletId = getSession()?.user.effectiveOutletIds[0];
+  const { outletId } = useSelectedContext();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [suppliers, setSuppliers] = useState<ApiSupplier[]>([]);
@@ -68,6 +69,9 @@ export function ScanInvoiceGrnForm() {
       })
       .finally(() => setReferenceDataLoaded(true));
   }, [outletId]);
+
+  const isDirty = uploading || !!scan || supplierId !== '' || lines.some((l) => l.itemId || l.receivedQty || l.actualPrice);
+  useUnsavedWorkGuard(isDirty, t('grn.new.scan.title'));
 
   const pollStatus = useCallback(async (scanId: string) => {
     for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {

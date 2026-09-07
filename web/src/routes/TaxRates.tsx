@@ -11,6 +11,7 @@ import { TaxRateFormModal } from '@/components/tax-rates/TaxRateFormModal';
 import { TaxRatePreviewModal } from '@/components/tax-rates/TaxRatePreviewModal';
 import { taxRatesApi, type ApiTaxRate } from '@/lib/tax-rates-api';
 import { getSession } from '@/lib/auth-store';
+import { useSelectedContext } from '@/lib/selected-context-store';
 import { ApiError } from '@/lib/api-client';
 
 /**
@@ -29,7 +30,7 @@ const MUTATE_ROLES = ['CHAIN_OWNER', 'PROPERTY_MANAGER'];
 export function TaxRates() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const outletId = getSession()?.user.effectiveOutletIds[0];
+  const { outletId } = useSelectedContext();
   const canMutate = MUTATE_ROLES.includes(getSession()?.user.effectiveRole ?? '');
 
   const [loading, setLoading] = useState(true);
@@ -48,14 +49,14 @@ export function TaxRates() {
     try {
       // No isActive filter — this screen shows both, unlike the Item form's
       // dropdown which only offers active rates for new selections.
-      const result = await taxRatesApi.list();
+      const result = await taxRatesApi.list({ outletId: outletId || undefined });
       setTaxRates(result);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('taxRates.loadError'));
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [outletId, t]);
 
   useEffect(() => {
     load();

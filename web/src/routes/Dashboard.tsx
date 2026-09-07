@@ -7,42 +7,47 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/cn';
-import { dashboardApi, type ApiOutletDashboard } from '@/lib/dashboard-api';
-import { getSession } from '@/lib/auth-store';
+import { dashboardApi, type ApiDashboardMetrics } from '@/lib/dashboard-api';
+import { useSelectedContext } from '@/lib/selected-context-store';
 import { ApiError } from '@/lib/api-client';
 
 /**
- * FR-08's dashboard, wired to real data. Always shows the caller's own
- * default outlet (`effectiveOutletIds[0]`) — the same single-outlet default
- * every other screen uses (see TransferList) — rather than a property/chain
- * roll-up, since there's no real property/chain picker to drive one from
- * yet (ContextSwitcher.tsx is still mock-data-driven). The property/chain
- * dashboard endpoints exist and are e2e-reconciliation-tested server-side;
- * consuming them here is deferred to when a real Context Switcher lands.
+ * FR-08's dashboard, wired to real data — and to the header Context
+ * Switcher's selection, not an independent default: `level: 'outlet'`
+ * calls GET /dashboard/outlet/:id, `level: 'property'` (a CHAIN_OWNER/
+ * PROPERTY_MANAGER viewing the whole property) calls GET
+ * /dashboard/property/:id. No other screen has a property-level view to
+ * switch to yet — this is the only one with anywhere to send it.
  */
 export function Dashboard() {
   const { t } = useTranslation();
-  const outletId = getSession()?.user.effectiveOutletIds[0];
+  const context = useSelectedContext();
 
-  const [dashboard, setDashboard] = useState<ApiOutletDashboard | null>(null);
+  const [dashboard, setDashboard] = useState<(ApiDashboardMetrics & { name: string }) | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!outletId) {
+    if (!context.outletId) {
       setLoading(false);
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      setDashboard(await dashboardApi.getOutlet(outletId));
+      if (context.level === 'property') {
+        const property = await dashboardApi.getProperty(context.propertyId);
+        setDashboard({ ...property, name: property.propertyName });
+      } else {
+        const outlet = await dashboardApi.getOutlet(context.outletId);
+        setDashboard({ ...outlet, name: outlet.outletName });
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('dashboard.loadError'));
     } finally {
       setLoading(false);
     }
-  }, [outletId, t]);
+  }, [context.level, context.outletId, context.propertyId, t]);
 
   useEffect(() => {
     load();
@@ -109,7 +114,7 @@ export function Dashboard() {
   return (
     <div className="flex flex-col gap-3">
       <h1 className="font-display text-xl font-semibold text-foreground">
-        {t('dashboard.title')} <span className="font-sans text-sm font-normal text-foreground-muted">— {dashboard.outletName}</span>
+        {t('dashboard.title')} <span className="font-sans text-sm font-normal text-foreground-muted">— {dashboard.name}</span>
       </h1>
 
       <div className="grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-2 tablet:grid-cols-5">

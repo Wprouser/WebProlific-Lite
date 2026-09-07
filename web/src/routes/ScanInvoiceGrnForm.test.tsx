@@ -9,6 +9,7 @@ import { suppliersApi } from '@/lib/suppliers-api';
 import { itemsApi, unitsApi } from '@/lib/items-api';
 import { taxRatesApi } from '@/lib/tax-rates-api';
 import { setSession } from '@/lib/auth-store';
+import { clearUnsavedWork, getUnsavedWork } from '@/lib/unsaved-work-registry';
 
 const navigateMock = vi.fn();
 vi.mock('react-router-dom', async () => {
@@ -74,6 +75,7 @@ function renderScreen() {
 describe('ScanInvoiceGrnForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearUnsavedWork();
     setSession({
       accessToken: 'token',
       refreshToken: 'refresh-token',
@@ -144,5 +146,22 @@ describe('ScanInvoiceGrnForm', () => {
 
     expect(await screen.findByText('blurry image')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Try another file' })).toBeInTheDocument();
+  });
+
+  it('AC: registers unsaved work once extracted data is showing, and clears it on unmount', async () => {
+    (invoiceScansApi.upload as ReturnType<typeof vi.fn>).mockResolvedValue(processingScan);
+    (invoiceScansApi.getStatus as ReturnType<typeof vi.fn>).mockResolvedValue(extractedScan);
+    const { unmount } = renderScreen();
+    expect(getUnsavedWork()).toBeNull();
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['fake-bytes'], 'invoice.jpg', { type: 'image/jpeg' });
+    await userEvent.upload(fileInput, file);
+
+    await screen.findByDisplayValue('INV-88213');
+    expect(getUnsavedWork()).toEqual({ label: 'Scan Invoice' });
+
+    unmount();
+    expect(getUnsavedWork()).toBeNull();
   });
 });

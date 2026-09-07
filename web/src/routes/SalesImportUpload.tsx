@@ -11,7 +11,7 @@ import {
   salesApi,
   type SalesDateFormat,
 } from '@/lib/sales-api';
-import { getSession } from '@/lib/auth-store';
+import { useSelectedContext } from '@/lib/selected-context-store';
 import { ApiError } from '@/lib/api-client';
 
 /**
@@ -24,7 +24,7 @@ import { ApiError } from '@/lib/api-client';
 export function SalesImportUpload() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const outletId = getSession()?.user.effectiveOutletIds[0];
+  const { outletId } = useSelectedContext();
 
   const [file, setFile] = useState<File | null>(null);
   const [dateFormat, setDateFormat] = useState<SalesDateFormat>(DEFAULT_SALES_DATE_FORMAT);

@@ -7,6 +7,8 @@ import { transfersApi } from '@/lib/transfers-api';
 import { outletsApi, type ApiOutlet } from '@/lib/outlets-api';
 import { itemsApi, type ApiItem } from '@/lib/items-api';
 import { setSession } from '@/lib/auth-store';
+import { clearSelectedContext, setSelectedContext } from '@/lib/selected-context-store';
+import { clearUnsavedWork, getUnsavedWork } from '@/lib/unsaved-work-registry';
 
 const navigateMock = vi.fn();
 vi.mock('react-router-dom', async () => {
@@ -87,6 +89,8 @@ async function fillFirstLine(itemValue = 'i1', quantity = '5') {
 describe('NewTransfer screen', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearSelectedContext();
+    clearUnsavedWork();
     setSession({
       accessToken: 'token',
       refreshToken: 'refresh-token',
@@ -211,5 +215,38 @@ describe('NewTransfer screen', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Submit request' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('no matching item at the destination outlet');
+  });
+
+  it('AC: pre-selects the source outlet from the Context Switcher\'s current selection', async () => {
+    setSelectedContext({ level: 'outlet', outletId: 'o2', propertyId: 'p1' });
+    renderScreen();
+    const sourceSelect = (await screen.findByLabelText('From outlet')) as HTMLSelectElement;
+    await waitFor(() => expect(sourceSelect.value).toBe('o2'));
+  });
+
+  it('does not register unsaved work just from the auto-filled source outlet', async () => {
+    setSelectedContext({ level: 'outlet', outletId: 'o1', propertyId: 'p1' });
+    renderScreen();
+    await screen.findByLabelText('From outlet');
+    expect(getUnsavedWork()).toBeNull();
+  });
+
+  it('AC: registers unsaved work once a destination outlet is chosen', async () => {
+    renderScreen();
+    await userEvent.selectOptions(await screen.findByLabelText('From outlet'), 'o1');
+    expect(getUnsavedWork()).toBeNull();
+
+    await userEvent.selectOptions(screen.getByLabelText('To outlet'), 'o2');
+    expect(getUnsavedWork()).toEqual({ label: 'New Transfer' });
+  });
+
+  it('clears the unsaved-work registration on unmount', async () => {
+    const { unmount } = renderScreen();
+    await userEvent.selectOptions(await screen.findByLabelText('From outlet'), 'o1');
+    await userEvent.selectOptions(screen.getByLabelText('To outlet'), 'o2');
+    expect(getUnsavedWork()).not.toBeNull();
+
+    unmount();
+    expect(getUnsavedWork()).toBeNull();
   });
 });

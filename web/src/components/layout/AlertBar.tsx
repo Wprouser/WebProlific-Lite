@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Bell } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { alertsApi, type ApiAlertSummary } from '@/lib/alerts-api';
-import { getSession } from '@/lib/auth-store';
+import { useSelectedContext } from '@/lib/selected-context-store';
 import { cn } from '@/lib/cn';
 
 // Pastel-tinted, not solid-fill — refined status pills rather than loud
@@ -44,7 +44,7 @@ const BADGES: {
  */
 export function AlertBar() {
   const { t } = useTranslation();
-  const outletId = getSession()?.user.effectiveOutletIds[0];
+  const { outletId } = useSelectedContext();
   const [summary, setSummary] = useState<ApiAlertSummary | null>(null);
 
   const load = useCallback(() => {

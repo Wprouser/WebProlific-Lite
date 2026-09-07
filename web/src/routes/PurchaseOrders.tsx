@@ -9,7 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { purchaseOrdersApi, type ApiPurchaseOrder, type POStatus } from '@/lib/purchase-orders-api';
 import { suppliersApi, type ApiSupplier } from '@/lib/suppliers-api';
-import { getSession } from '@/lib/auth-store';
+import { useSelectedContext } from '@/lib/selected-context-store';
 import { ApiError } from '@/lib/api-client';
 
 const PO_STATUSES: POStatus[] = [
@@ -39,7 +39,7 @@ const STATUS_VARIANT: Record<string, 'neutral' | 'info' | 'success-solid' | 'dan
 export function PurchaseOrders() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const outletId = getSession()?.user.effectiveOutletIds[0];
+  const { outletId } = useSelectedContext();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

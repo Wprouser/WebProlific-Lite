@@ -20,6 +20,7 @@ export interface ApiTaxRate {
 }
 
 export interface TaxRateFilters {
+  outletId?: string;
   isActive?: boolean;
 }
 
@@ -53,6 +54,7 @@ export interface TaxRatePreviewResult {
 
 function buildQuery(filters: TaxRateFilters): string {
   const params = new URLSearchParams();
+  if (filters.outletId) params.set('outletId', filters.outletId);
   if (filters.isActive !== undefined) params.set('isActive', String(filters.isActive));
   const qs = params.toString();
   return qs ? `?${qs}` : '';

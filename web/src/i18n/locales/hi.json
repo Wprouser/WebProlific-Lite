@@ -151,7 +151,9 @@
     "ariaLabel": "चेन, प्रॉपर्टी और आउटलेट संदर्भ",
     "switchProperty": "प्रॉपर्टी बदलें",
     "switchOutlet": "आउटलेट बदलें",
-    "none": "अभी तक कोई संगठन एक्सेस नहीं"
+    "none": "अभी तक कोई संगठन एक्सेस नहीं",
+    "viewEntireProperty": "पूरी प्रॉपर्टी देखें",
+    "allOutlets": "सभी आउटलेट"
   },
   "search": {
     "title": "ग्लोबल सर्च",
@@ -1166,5 +1168,8 @@
       "baseCurrencyPlaceholder": "एक मुद्रा चुनें",
       "poApprovalThresholdPlaceholder": "कोई सीमा नहीं"
     }
+  },
+  "unsavedWork": {
+    "confirmDiscard": "आपके पास {{label}} में असहेजे गए परिवर्तन हैं। क्या उन्हें छोड़कर आगे बढ़ें?"
   }
 }

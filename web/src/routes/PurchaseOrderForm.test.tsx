@@ -10,6 +10,7 @@ import { taxRatesApi } from '@/lib/tax-rates-api';
 import { currenciesApi } from '@/lib/currencies-api';
 import { outletsApi } from '@/lib/outlets-api';
 import { setSession } from '@/lib/auth-store';
+import { clearUnsavedWork, getUnsavedWork } from '@/lib/unsaved-work-registry';
 
 const navigateMock = vi.fn();
 vi.mock('react-router-dom', async () => {
@@ -56,6 +57,16 @@ function renderScreen() {
   );
 }
 
+function renderEditScreen(id: string) {
+  return render(
+    <MemoryRouter initialEntries={[`/purchase-orders/${id}/edit`]}>
+      <Routes>
+        <Route path="/purchase-orders/:id/edit" element={<PurchaseOrderForm />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
 // The Net/Tax/Discount/Other Charges/Gross summary box — scoped separately
 // from the Discount/Other Charges *input fields* above it, since both use
 // the same label text ("Discount"/"Other Charges").
@@ -66,6 +77,7 @@ function summaryBox() {
 describe('PurchaseOrderForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearUnsavedWork();
     setSession({
       accessToken: 'token',
       refreshToken: 'refresh-token',
@@ -130,5 +142,51 @@ describe('PurchaseOrderForm', () => {
       ),
     );
     expect(navigateMock).toHaveBeenCalledWith('/purchase-orders/po1');
+  });
+
+  it('AC: editing a PO scopes suppliers/units/currency settings to *that PO\'s own outlet*, not the currently selected one', async () => {
+    // Session/selection default to 'o1'; the PO being edited belongs to 'o2'.
+    (purchaseOrdersApi.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'po2',
+      outletId: 'o2',
+      supplierId: 's1',
+      status: 'DRAFT',
+      expectedDeliveryDate: null,
+      createdById: 'u1',
+      approvedById: null,
+      approvedAt: null,
+      currencyCode: 'SAR',
+      exchangeRateToBase: '1',
+      isTaxInclusive: false,
+      discountAmount: '0.00',
+      otherChargesAmount: '0.00',
+      subtotal: '0.00',
+      taxAmount: '0.00',
+      totalValue: '0.00',
+      lines: [{ id: 'l1', purchaseOrderId: 'po2', itemId: 'i1', orderedQty: '5', expectedPrice: '10.00', taxRateId: null, taxRate: '0', lineSubtotal: '50.00', lineTaxAmount: '0.00', lineTotal: '50.00', receivedQty: '0', taxComponents: [] }],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      lastEmailedAt: null,
+      lastEmailedTo: null,
+    });
+
+    renderEditScreen('po2');
+    await screen.findByText('Al-Fahad Trading');
+
+    expect(suppliersApi.list).toHaveBeenCalledWith(expect.objectContaining({ outletId: 'o2' }));
+    expect(unitsApi.list).toHaveBeenCalledWith({ outletId: 'o2' });
+    expect(outletsApi.getCurrencySettings).toHaveBeenCalledWith('o2');
+    expect(suppliersApi.list).not.toHaveBeenCalledWith(expect.objectContaining({ outletId: 'o1' }));
+  });
+
+  it('AC: registers unsaved work once a supplier is picked, and clears it on unmount', async () => {
+    const { unmount } = renderScreen();
+    await screen.findByText('Al-Fahad Trading');
+    expect(getUnsavedWork()).toBeNull();
+
+    await userEvent.selectOptions(screen.getByLabelText('Supplier'), 's1');
+    expect(getUnsavedWork()).toEqual({ label: 'New Purchase Order' });
+
+    unmount();
+    expect(getUnsavedWork()).toBeNull();
   });
 });

@@ -10,6 +10,7 @@ import { taxRatesApi } from '@/lib/tax-rates-api';
 import { currenciesApi } from '@/lib/currencies-api';
 import { outletsApi } from '@/lib/outlets-api';
 import { setSession } from '@/lib/auth-store';
+import { clearUnsavedWork, getUnsavedWork } from '@/lib/unsaved-work-registry';
 
 const navigateMock = vi.fn();
 vi.mock('react-router-dom', async () => {
@@ -66,6 +67,7 @@ function summaryBox() {
 describe('DirectGrnForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearUnsavedWork();
     setSession({
       accessToken: 'token',
       refreshToken: 'refresh-token',
@@ -130,5 +132,17 @@ describe('DirectGrnForm', () => {
       ),
     );
     expect(navigateMock).toHaveBeenCalledWith('/grn/g1');
+  });
+
+  it('AC: registers unsaved work once a supplier is picked, and clears it on unmount', async () => {
+    const { unmount } = renderScreen();
+    await screen.findByText('Al-Fahad Trading');
+    expect(getUnsavedWork()).toBeNull();
+
+    await userEvent.selectOptions(screen.getByLabelText('Supplier'), 's1');
+    expect(getUnsavedWork()).toEqual({ label: 'Direct Entry (No PO)' });
+
+    unmount();
+    expect(getUnsavedWork()).toBeNull();
   });
 });

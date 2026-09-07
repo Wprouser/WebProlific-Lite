@@ -8,7 +8,7 @@ import { Select } from '@/components/ui/Select';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { transfersApi, type ApiTransferWithOutlets, type TransferStatus } from '@/lib/transfers-api';
-import { getSession } from '@/lib/auth-store';
+import { useSelectedContext } from '@/lib/selected-context-store';
 import { ApiError } from '@/lib/api-client';
 
 const STATUS_VARIANT: Record<TransferStatus, 'neutral' | 'info' | 'success' | 'danger'> = {
@@ -27,7 +27,7 @@ const STATUS_VARIANT: Record<TransferStatus, 'neutral' | 'info' | 'success' | 'd
 export function TransferList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const outletId = getSession()?.user.effectiveOutletIds[0];
+  const { outletId } = useSelectedContext();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,13 +38,13 @@ export function TransferList() {
     setLoading(true);
     setError(null);
     try {
-      setTransfers(await transfersApi.list({ status: statusFilter || undefined }));
+      setTransfers(await transfersApi.list({ outletId: outletId || undefined, status: statusFilter || undefined }));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('transfers.loadError'));
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, t]);
+  }, [outletId, statusFilter, t]);
 
   useEffect(() => {
     load();

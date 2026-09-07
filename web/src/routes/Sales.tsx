@@ -13,7 +13,7 @@ import {
   type ApiUnmappedMenuItem,
   type SaleSourceType,
 } from '@/lib/sales-api';
-import { getSession } from '@/lib/auth-store';
+import { useSelectedContext } from '@/lib/selected-context-store';
 import { ApiError } from '@/lib/api-client';
 
 type Tab = 'sales' | 'unmapped';
@@ -35,7 +35,7 @@ export function Sales() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const outletId = getSession()?.user.effectiveOutletIds[0];
+  const { outletId } = useSelectedContext();
 
   const tab: Tab = searchParams.get('tab') === 'unmapped' ? 'unmapped' : 'sales';
   const [loading, setLoading] = useState(true);

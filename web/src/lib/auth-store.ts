@@ -1,3 +1,5 @@
+import { clearSelectedContext } from './selected-context-store';
+
 const STORAGE_KEY = 'webprolific.session';
 const TRUSTED_DEVICE_KEY = 'webprolific.trustedDevice';
 const SESSION_EXPIRED_KEY = 'webprolific.sessionExpired';
@@ -43,6 +45,11 @@ export function setSession(session: Session): void {
 
 export function clearSession(): void {
   localStorage.removeItem(STORAGE_KEY);
+  // A different user on the same browser shouldn't inherit someone else's
+  // outlet/property selection. (selected-context-store imports getSession
+  // from this module too — a safe cycle, since both sides only use the
+  // other's export inside a function body, never at module init time.)
+  clearSelectedContext();
 }
 
 /**

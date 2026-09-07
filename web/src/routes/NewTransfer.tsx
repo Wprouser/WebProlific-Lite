@@ -13,6 +13,8 @@ import {
 import { transfersApi } from '@/lib/transfers-api';
 import { outletsApi, type ApiOutlet } from '@/lib/outlets-api';
 import { itemsApi, type ApiItem } from '@/lib/items-api';
+import { useSelectedContext } from '@/lib/selected-context-store';
+import { useUnsavedWorkGuard } from '@/lib/unsaved-work-registry';
 import { ApiError } from '@/lib/api-client';
 
 /**
@@ -27,6 +29,7 @@ import { ApiError } from '@/lib/api-client';
 export function NewTransfer() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { outletId: contextOutletId } = useSelectedContext();
 
   const [outlets, setOutlets] = useState<ApiOutlet[]>([]);
   const [sourceOutletId, setSourceOutletId] = useState('');
@@ -44,10 +47,20 @@ export function NewTransfer() {
       .listAccessible()
       .then((rows) => {
         setOutlets(rows);
-        if (rows.length === 1) setSourceOutletId(rows[0].id);
+        if (rows.length === 1) {
+          setSourceOutletId(rows[0].id);
+        } else if (contextOutletId && rows.some((r) => r.id === contextOutletId)) {
+          // Pre-selects whatever the header Context Switcher is currently
+          // showing — still just a default, freely overridable below.
+          setSourceOutletId(contextOutletId);
+        }
       })
       .catch(() => setOutlets([]))
       .finally(() => setLoadingOutlets(false));
+    // Only the initial pre-fill — deliberately not reactive to a later
+    // context switch while this form is open (that's exactly the
+    // in-progress work the unsaved-work guard below protects).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -71,6 +84,12 @@ export function NewTransfer() {
       .then(setDestItems)
       .catch(() => setDestItems([]));
   }, [destOutletId]);
+
+  // sourceOutletId deliberately excluded — it's often auto-filled on load
+  // (a single accessible outlet, or the current Context Switcher
+  // selection), which would otherwise mark the form dirty before the user
+  // has done anything at all.
+  useUnsavedWorkGuard(!!destOutletId || lines.some((l) => l.itemId || l.quantity), t('transfers.addNew'));
 
   const destOutletOptions = outlets.filter((outlet) => outlet.id !== sourceOutletId);
   const canSubmit =

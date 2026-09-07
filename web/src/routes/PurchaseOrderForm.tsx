@@ -15,7 +15,8 @@ import { taxRatesApi, type ApiTaxRate } from '@/lib/tax-rates-api';
 import { currenciesApi, type ApiCurrency } from '@/lib/currencies-api';
 import { outletsApi } from '@/lib/outlets-api';
 import { previewDocumentTotals, previewLineTax } from '@/lib/document-tax-preview';
-import { getSession } from '@/lib/auth-store';
+import { useSelectedContext } from '@/lib/selected-context-store';
+import { useUnsavedWorkGuard } from '@/lib/unsaved-work-registry';
 import { ApiError } from '@/lib/api-client';
 import { cn } from '@/lib/cn';
 
@@ -45,7 +46,7 @@ export function PurchaseOrderForm() {
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const outletId = getSession()?.user.effectiveOutletIds[0];
+  const { outletId } = useSelectedContext();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,32 +69,24 @@ export function PurchaseOrderForm() {
   const [lines, setLines] = useState<POLineInput[]>([{ itemId: '', orderedQty: '', expectedPrice: '' }]);
 
   const load = useCallback(async () => {
-    if (!outletId) return;
     setLoading(true);
     setError(null);
     try {
-      const [supplierList, itemList, unitList, taxRateList, currencyList, settings] = await Promise.all([
-        suppliersApi.list({ outletId, isActive: true }),
-        itemsApi.list({ isActive: true }),
-        unitsApi.list({ outletId }),
-        taxRatesApi.list({ isActive: true }),
-        currenciesApi.list(),
-        outletsApi.getCurrencySettings(outletId),
-      ]);
-      setSuppliers(supplierList);
-      setItems(itemList);
-      setUnits(unitList);
-      setTaxRates(taxRateList);
-      setCurrencies(currencyList);
-      setOutletBaseCurrency(settings.baseCurrency);
-      setCurrencyCode((prev) => prev || settings.baseCurrency);
-
+      // Editing an existing DRAFT: resolve its own outlet first — not the
+      // header Context Switcher's current selection — since a PO already
+      // belongs to a specific outlet, and its supplier/unit/currency
+      // reference data must reflect that outlet regardless of what's
+      // currently selected elsewhere (same fix as ItemDetail/
+      // SalesImportReview). Checked before fetching any reference data, so
+      // a non-DRAFT PO fails fast instead of loading it all for nothing.
+      let referenceOutletId = outletId;
       if (id) {
         const po = await purchaseOrdersApi.get(id);
         if (po.status !== 'DRAFT') {
           setError(t('purchaseOrders.form.notDraftError'));
           return;
         }
+        referenceOutletId = po.outletId;
         setSupplierId(po.supplierId);
         setCurrencyCode(po.currencyCode);
         setExchangeRateToBase(po.exchangeRateToBase);
@@ -110,6 +103,23 @@ export function PurchaseOrderForm() {
           })),
         );
       }
+      if (!referenceOutletId) return;
+
+      const [supplierList, itemList, unitList, taxRateList, currencyList, settings] = await Promise.all([
+        suppliersApi.list({ outletId: referenceOutletId, isActive: true }),
+        itemsApi.list({ isActive: true }),
+        unitsApi.list({ outletId: referenceOutletId }),
+        taxRatesApi.list({ isActive: true }),
+        currenciesApi.list(),
+        outletsApi.getCurrencySettings(referenceOutletId),
+      ]);
+      setSuppliers(supplierList);
+      setItems(itemList);
+      setUnits(unitList);
+      setTaxRates(taxRateList);
+      setCurrencies(currencyList);
+      setOutletBaseCurrency(settings.baseCurrency);
+      setCurrencyCode((prev) => prev || settings.baseCurrency);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('purchaseOrders.form.loadError'));
     } finally {
@@ -120,6 +130,14 @@ export function PurchaseOrderForm() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Edit mode is always treated as dirty once loaded — the form pre-fills
+  // with real data immediately, and it's safer to over-warn on a switch
+  // than silently discard a real in-progress edit. Create mode only
+  // becomes dirty once the user has actually started filling it in.
+  const isDirty =
+    !loading && (isEdit || supplierId !== '' || lines.some((l) => l.itemId || l.orderedQty || l.expectedPrice));
+  useUnsavedWorkGuard(isDirty, isEdit ? t('purchaseOrders.form.editTitle') : t('purchaseOrders.form.createTitle'));
 
   function handleSupplierChange(newSupplierId: string) {
     setSupplierId(newSupplierId);

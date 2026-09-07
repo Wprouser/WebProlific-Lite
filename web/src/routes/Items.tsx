@@ -14,7 +14,7 @@ import { CategoryManagerModal } from '@/components/items/CategoryManagerModal';
 import { UnitManagerModal } from '@/components/items/UnitManagerModal';
 import { categoriesApi, itemsApi, unitsApi, type ApiCategory, type ApiItem, type ApiUnitOfMeasure } from '@/lib/items-api';
 import { taxRatesApi, type ApiTaxRate } from '@/lib/tax-rates-api';
-import { getSession } from '@/lib/auth-store';
+import { useSelectedContext } from '@/lib/selected-context-store';
 import { ApiError } from '@/lib/api-client';
 
 type StatusFilter = 'active' | 'inactive' | 'all';
@@ -28,7 +28,7 @@ type StatusFilter = 'active' | 'inactive' | 'all';
 export function Items() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const outletId = getSession()?.user.effectiveOutletIds[0];
+  const { outletId } = useSelectedContext();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +51,7 @@ export function Items() {
     setError(null);
     try {
       const result = await itemsApi.list({
+        outletId: outletId || undefined,
         categoryId: categoryFilter || undefined,
         isActive: statusFilter === 'all' ? undefined : statusFilter === 'active',
         search: search.trim() || undefined,
@@ -62,7 +63,7 @@ export function Items() {
     } finally {
       setLoading(false);
     }
-  }, [categoryFilter, statusFilter, search, belowMinOnly, t]);
+  }, [outletId, categoryFilter, statusFilter, search, belowMinOnly, t]);
 
   // Debounced so free-text search doesn't fire a request per keystroke.
   useEffect(() => {
@@ -71,10 +72,10 @@ export function Items() {
   }, [loadItems]);
 
   useEffect(() => {
-    categoriesApi.list().then(setCategories).catch(() => setCategories([]));
-    unitsApi.list().then(setUnits).catch(() => setUnits([]));
-    taxRatesApi.list().then(setTaxRates).catch(() => setTaxRates([]));
-  }, []);
+    categoriesApi.list(outletId).then(setCategories).catch(() => setCategories([]));
+    unitsApi.list({ outletId }).then(setUnits).catch(() => setUnits([]));
+    taxRatesApi.list({ outletId }).then(setTaxRates).catch(() => setTaxRates([]));
+  }, [outletId]);
 
   const categoryName = (categoryId: string) => categories.find((c) => c.id === categoryId)?.name ?? '—';
   const unitAbbreviation = (unitId: string) => units.find((u) => u.id === unitId)?.abbreviation ?? '—';

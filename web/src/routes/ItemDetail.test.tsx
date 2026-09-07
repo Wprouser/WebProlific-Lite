@@ -100,7 +100,10 @@ describe('ItemDetail', () => {
     // Stock value = currentStock (25) * costPrice (85.50) = 2137.50
     expect(screen.getByText('2137.50')).toBeInTheDocument();
     // Opening stock surfaced from the OPENING_BALANCE transaction row.
-    expect(screen.getByText(/25\.000 kg @ 85\.50/)).toBeInTheDocument();
+    // Category/unit/tax lookups now wait for the item to load first (so
+    // they can scope to *its* outlet, not the caller's default), so this
+    // resolves one tick after the heading rather than alongside it.
+    expect(await screen.findByText(/25\.000 kg @ 85\.50/)).toBeInTheDocument();
   });
 
   it('switches to the Transactions tab and shows the OPENING_BALANCE row', async () => {

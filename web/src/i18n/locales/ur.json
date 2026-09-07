@@ -151,7 +151,9 @@
     "ariaLabel": "چین، پراپرٹی اور آؤٹ لیٹ کا سیاق",
     "switchProperty": "پراپرٹی تبدیل کریں",
     "switchOutlet": "آؤٹ لیٹ تبدیل کریں",
-    "none": "ابھی تک ادارے تک رسائی نہیں"
+    "none": "ابھی تک ادارے تک رسائی نہیں",
+    "viewEntireProperty": "پوری پراپرٹی دیکھیں",
+    "allOutlets": "تمام آؤٹ لیٹس"
   },
   "search": {
     "title": "گلوبل تلاش",
@@ -1166,5 +1168,8 @@
       "baseCurrencyPlaceholder": "ایک کرنسی منتخب کریں",
       "poApprovalThresholdPlaceholder": "کوئی حد نہیں"
     }
+  },
+  "unsavedWork": {
+    "confirmDiscard": "آپ کے پاس {{label}} میں غیر محفوظ شدہ تبدیلیاں ہیں۔ کیا انہیں ترک کر کے آگے بڑھیں؟"
   }
 }

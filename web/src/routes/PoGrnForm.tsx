@@ -14,7 +14,8 @@ import { suppliersApi, type ApiSupplier } from '@/lib/suppliers-api';
 import { itemsApi, unitsApi, type ApiItem, type ApiUnitOfMeasure } from '@/lib/items-api';
 import { taxRatesApi, type ApiTaxRate } from '@/lib/tax-rates-api';
 import { previewDocumentTotals, previewLineTax } from '@/lib/document-tax-preview';
-import { getSession } from '@/lib/auth-store';
+import { useSelectedContext } from '@/lib/selected-context-store';
+import { useUnsavedWorkGuard } from '@/lib/unsaved-work-registry';
 import { ApiError } from '@/lib/api-client';
 
 const RECEIVABLE_STATUSES: ApiPurchaseOrder['status'][] = ['APPROVED', 'SENT_TO_SUPPLIER', 'PARTIALLY_RECEIVED'];
@@ -30,7 +31,7 @@ export function PoGrnForm() {
   const { poId } = useParams<{ poId?: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const outletId = getSession()?.user.effectiveOutletIds[0];
+  const { outletId } = useSelectedContext();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,25 +51,24 @@ export function PoGrnForm() {
   const [lines, setLines] = useState<GrnLineInput[]>([]);
 
   const load = useCallback(async () => {
-    if (!outletId) return;
     setLoading(true);
     setError(null);
     try {
-      const [itemList, unitList, taxRateList] = await Promise.all([
-        itemsApi.list({ isActive: true }),
-        unitsApi.list({ outletId }),
-        taxRatesApi.list({ isActive: true }),
-      ]);
-      setItems(itemList);
-      setUnits(unitList);
-      setTaxRates(taxRateList);
-
+      // Arriving pre-selected for a specific PO: resolve its own outlet
+      // first — not the header Context Switcher's current selection —
+      // since that PO already belongs to a specific outlet, and its unit
+      // reference data must reflect that outlet regardless of what's
+      // currently selected elsewhere (same fix as ItemDetail/
+      // SalesImportReview/PurchaseOrderForm). Checked before fetching
+      // units, so an unreceivable PO fails fast.
+      let referenceOutletId = outletId;
       if (poId) {
         const selected = await purchaseOrdersApi.get(poId);
         if (!RECEIVABLE_STATUSES.includes(selected.status)) {
           setError(t('grn.poForm.notReceivableError'));
           return;
         }
+        referenceOutletId = selected.outletId;
         const supplierResult = await suppliersApi.get(selected.supplierId);
         setSuppliers([supplierResult]);
         setPo(selected);
@@ -82,10 +82,22 @@ export function PoGrnForm() {
             taxRateId: l.taxRateId ?? undefined,
           })),
         );
-      } else {
+      }
+      if (!referenceOutletId) return;
+
+      const [itemList, unitList, taxRateList] = await Promise.all([
+        itemsApi.list({ isActive: true }),
+        unitsApi.list({ outletId: referenceOutletId }),
+        taxRatesApi.list({ isActive: true }),
+      ]);
+      setItems(itemList);
+      setUnits(unitList);
+      setTaxRates(taxRateList);
+
+      if (!poId) {
         const [allPOs, supplierList] = await Promise.all([
-          purchaseOrdersApi.list({ outletId }),
-          suppliersApi.list({ outletId }),
+          purchaseOrdersApi.list({ outletId: referenceOutletId }),
+          suppliersApi.list({ outletId: referenceOutletId }),
         ]);
         setCandidatePOs(allPOs.filter((p) => RECEIVABLE_STATUSES.includes(p.status)));
         setSuppliers(supplierList);
@@ -100,6 +112,10 @@ export function PoGrnForm() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Nothing to lose until a PO has actually been chosen and its lines
+  // populated — the bare picker screen isn't "in progress" work.
+  useUnsavedWorkGuard(!loading && !!po, t('grn.poForm.pickerTitle'));
 
   function supplierName(supplierId: string): string {
     return suppliers.find((s) => s.id === supplierId)?.name ?? supplierId;

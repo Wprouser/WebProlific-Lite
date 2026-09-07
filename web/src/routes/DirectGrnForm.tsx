@@ -15,7 +15,8 @@ import { taxRatesApi, type ApiTaxRate } from '@/lib/tax-rates-api';
 import { currenciesApi, type ApiCurrency } from '@/lib/currencies-api';
 import { outletsApi } from '@/lib/outlets-api';
 import { previewDocumentTotals, previewLineTax } from '@/lib/document-tax-preview';
-import { getSession } from '@/lib/auth-store';
+import { useSelectedContext } from '@/lib/selected-context-store';
+import { useUnsavedWorkGuard } from '@/lib/unsaved-work-registry';
 import { ApiError } from '@/lib/api-client';
 import { cn } from '@/lib/cn';
 
@@ -43,7 +44,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 export function DirectGrnForm() {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const outletId = getSession()?.user.effectiveOutletIds[0];
+  const { outletId } = useSelectedContext();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +96,10 @@ export function DirectGrnForm() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const isDirty =
+    !loading && (supplierId !== '' || lines.some((l) => l.itemId || l.receivedQty || l.actualPrice));
+  useUnsavedWorkGuard(isDirty, t('grn.new.direct.title'));
 
   function handleSupplierChange(newSupplierId: string) {
     setSupplierId(newSupplierId);

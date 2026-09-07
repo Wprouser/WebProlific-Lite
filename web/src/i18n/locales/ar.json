@@ -151,7 +151,9 @@
     "ariaLabel": "سياق السلسلة والمنشأة والمنفذ",
     "switchProperty": "تبديل المنشأة",
     "switchOutlet": "تبديل المنفذ",
-    "none": "لا يوجد وصول للمؤسسة بعد"
+    "none": "لا يوجد وصول للمؤسسة بعد",
+    "viewEntireProperty": "عرض العقار بالكامل",
+    "allOutlets": "جميع المنافذ"
   },
   "search": {
     "title": "البحث الشامل",
@@ -1166,5 +1168,8 @@
       "baseCurrencyPlaceholder": "اختر عملة",
       "poApprovalThresholdPlaceholder": "بلا حد"
     }
+  },
+  "unsavedWork": {
+    "confirmDiscard": "لديك تغييرات غير محفوظة في {{label}}. هل تريد تجاهلها والمتابعة؟"
   }
 }

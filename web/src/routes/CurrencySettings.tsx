@@ -12,6 +12,7 @@ import { currenciesApi, type ApiCurrency } from '@/lib/currencies-api';
 import { exchangeRatesApi, type ApiExchangeRate } from '@/lib/exchange-rates-api';
 import { outletsApi, type ApiOutletCurrencySettings } from '@/lib/outlets-api';
 import { getSession } from '@/lib/auth-store';
+import { useSelectedContext } from '@/lib/selected-context-store';
 import { ApiError } from '@/lib/api-client';
 
 // Mirrors the backend's own role gates (see ExchangeRatesController and
@@ -28,7 +29,7 @@ const BASE_CURRENCY_MUTATE_ROLES = ['CHAIN_OWNER'];
  */
 export function CurrencySettings() {
   const { t } = useTranslation();
-  const outletId = getSession()?.user.effectiveOutletIds[0];
+  const { outletId } = useSelectedContext();
   const role = getSession()?.user.effectiveRole ?? '';
   const canMutateRates = RATE_MUTATE_ROLES.includes(role);
   const canChangeBaseCurrency = BASE_CURRENCY_MUTATE_ROLES.includes(role);
@@ -170,7 +171,7 @@ export function CurrencySettings() {
             <ChangeBaseCurrencyModal
               open={changeBaseCurrencyOpen}
               onOpenChange={setChangeBaseCurrencyOpen}
-              outletId={outletId!}
+              outletId={outletId}
               currentSettings={currencySettings}
               currencies={currencies}
               onSaved={() => {

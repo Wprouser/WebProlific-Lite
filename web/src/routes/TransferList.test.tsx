@@ -117,7 +117,7 @@ describe('TransferList screen', () => {
     await screen.findByText('Main Kitchen');
 
     await userEvent.selectOptions(screen.getByRole('combobox'), 'IN_TRANSIT');
-    expect(transfersApi.list).toHaveBeenLastCalledWith({ status: 'IN_TRANSIT' });
+    expect(transfersApi.list).toHaveBeenLastCalledWith({ outletId: 'o1', status: 'IN_TRANSIT' });
   });
 
   it('shows an empty state when there are no transfers', async () => {

@@ -28,7 +28,6 @@ import { taxRatesApi, type ApiTaxRate } from '@/lib/tax-rates-api';
 import { stockTransactionsApi, type ApiStockTransaction } from '@/lib/stock-transactions-api';
 import { transactionLogApi, type ApiTransactionLogEntry } from '@/lib/transaction-log-api';
 import { ApiError } from '@/lib/api-client';
-import { getSession } from '@/lib/auth-store';
 
 type Tab = 'overview' | 'transactions' | 'history';
 const TABS: Tab[] = ['overview', 'transactions', 'history'];
@@ -43,7 +42,6 @@ export function ItemDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const outletId = getSession()?.user.effectiveOutletIds[0];
 
   const [item, setItem] = useState<ApiItem | null>(null);
   const [categories, setCategories] = useState<ApiCategory[]>([]);
@@ -91,10 +89,21 @@ export function ItemDetail() {
   }, [load]);
 
   useEffect(() => {
-    categoriesApi.list().then(setCategories).catch(() => setCategories([]));
-    unitsApi.list().then(setUnits).catch(() => setUnits([]));
-    taxRatesApi.list().then(setTaxRates).catch(() => setTaxRates([]));
-  }, []);
+    // Scoped to the item's own outlet, not the header Context Switcher's
+    // current selection — this page is about one specific, already-fixed
+    // item, so its category/unit/tax dropdowns must reflect where that
+    // item actually lives, regardless of what's currently selected
+    // elsewhere. Waits for the item to load, since that's the only source
+    // of its outletId.
+    if (!item) return;
+    categoriesApi.list(item.outletId).then(setCategories).catch(() => setCategories([]));
+    unitsApi.list({ outletId: item.outletId }).then(setUnits).catch(() => setUnits([]));
+    taxRatesApi.list({ outletId: item.outletId }).then(setTaxRates).catch(() => setTaxRates([]));
+    // Deliberately keyed on outletId alone, not the whole item — it never
+    // changes post-load, so re-running this on every other item field edit
+    // (name, cost, etc.) would just be wasted refetches.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.outletId]);
 
   useEffect(() => {
     if (!id) return;
@@ -392,7 +401,7 @@ export function ItemDetail() {
         categories={categories}
         units={units}
         taxRates={taxRates}
-        outletId={outletId}
+        outletId={item.outletId}
         onSaved={handleSaved}
       />
       <StockTransactionFormModal
@@ -410,7 +419,7 @@ export function ItemDetail() {
         open={categoryManagerOpen}
         onOpenChange={setCategoryManagerOpen}
         categories={categories}
-        outletId={outletId}
+        outletId={item.outletId}
         onCreate={(category) => setCategories((prev) => [...prev, category])}
       />
     </div>
