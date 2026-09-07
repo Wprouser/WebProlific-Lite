@@ -60,6 +60,8 @@ model Outlet {
   sales               Sale[]
   saleImportBatches   SaleImportBatch[]
   alerts              Alert[]
+  transfersOut        StockTransfer[]   @relation("TransferSourceOutlet")
+  transfersIn         StockTransfer[]   @relation("TransferDestOutlet")
 
   @@index([propertyId])
   @@index([chainId])
@@ -358,6 +360,8 @@ model Item {
   images            ItemImage[]
   recipeLines       RecipeLine[]
   alerts            Alert[]
+  transferLinesOut  TransferLine[]     @relation("TransferLineSourceItem")
+  transferLinesIn   TransferLine[]     @relation("TransferLineDestItem")
 
   @@index([outletId, isActive])
   @@index([categoryId])
@@ -1052,4 +1056,79 @@ model Alert {
   // Serves the dedup lookup: "is there already an open alert of this type
   // for this item, raised within the cooldown window".
   @@index([itemId, type, status, createdAt])
+}
+
+// FR-08: Multi-Outlet Transfer
+//
+// TransferStatus is a String column, not a Prisma `enum` block — see the
+// header note; enforced via src/transfers/constants/enums.ts.
+//
+// onDelete/onUpdate: NoAction throughout this section is forced, not
+// stylistic — StockTransfer reaches Outlet via TWO direct FKs
+// (sourceOutletId, destOutletId), which SQL Server rejects as "multiple
+// cascade paths" exactly like a single indirect path does elsewhere in
+// this schema (see Sale, Alert). TransferLine reaches Outlet by three
+// further paths (itemId -> Item -> outlet, destItemId -> Item -> outlet,
+// transferId -> StockTransfer -> either outlet), so every FK on it is
+// NoAction too.
+model StockTransfer {
+  id             String @id @default(uuid())
+  sourceOutletId String
+  sourceOutlet   Outlet @relation("TransferSourceOutlet", fields: [sourceOutletId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  destOutletId   String
+  destOutlet     Outlet @relation("TransferDestOutlet", fields: [destOutletId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  status String @default("REQUESTED") // TransferStatus: REQUESTED | IN_TRANSIT | RECEIVED | CANCELLED
+
+  // Loose references to User.id, not formal @relations — same pattern as
+  // PurchaseOrder.createdById/approvedById and GRN.receivedById. Each is
+  // set by whoever actually performed that action, which need not be the
+  // person who requested the transfer.
+  requestedById  String
+  dispatchedById String?
+  receivedById   String?
+
+  lines TransferLine[]
+
+  createdAt    DateTime  @default(now())
+  dispatchedAt DateTime?
+  receivedAt   DateTime?
+  cancelledAt  DateTime?
+
+  @@index([sourceOutletId, status])
+  @@index([destOutletId, status])
+}
+
+model TransferLine {
+  id         String        @id @default(uuid())
+  transferId String
+  transfer   StockTransfer @relation(fields: [transferId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // The source outlet's Item row — this is what dispatch decrements.
+  itemId String
+  item   Item   @relation("TransferLineSourceItem", fields: [itemId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Not in the spec's model, which shows only one `itemId` — a genuine gap,
+  // not a simplification: Item is outlet-scoped (FR-01) and `sku` is
+  // globally unique, so a single id cannot mean "this product" at both
+  // outlets. Resolved at creation time (barcode match, then fuzzy name
+  // match against the destination outlet's catalogue, both reused from
+  // FR-04/FR-06's existing matching utilities) and rejected outright if it
+  // can't be resolved — see TransfersService.resolveDestinationItem. This
+  // is what dispatch's counterpart, receive, increments.
+  destItemId String
+  destItem   Item   @relation("TransferLineDestItem", fields: [destItemId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // The requested/dispatched quantity, in the source item's own unit.
+  quantity Decimal @db.Decimal(10, 3)
+
+  // Null until received. Spec: "quantity received can differ from
+  // dispatched (damage in transit) — capture actualReceivedQty per line and
+  // flag variance similarly to GRN."
+  actualReceivedQty Decimal? @db.Decimal(10, 3)
+  varianceFlagged   Boolean  @default(false)
+
+  @@index([transferId])
+  @@index([itemId])
+  @@index([destItemId])
 }

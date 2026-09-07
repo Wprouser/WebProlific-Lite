@@ -69,4 +69,10 @@ export class PrismaOutletRepository implements OutletRepository {
       data: { isActive: false },
     });
   }
+
+  async findByIds(ids: string[]): Promise<Outlet[]> {
+    if (ids.length === 0) return [];
+    const outlets = await this.prisma.outlet.findMany({ where: { id: { in: ids } }, orderBy: { name: 'asc' } });
+    return outlets.map(toDomain);
+  }
 }

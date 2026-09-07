@@ -51,6 +51,11 @@ export interface ApiItemImage {
 }
 
 export interface ItemFilters {
+  // The backend has supported this since FR-01 (for a multi-outlet caller
+  // narrowing the list to one outlet); it was simply never exposed here
+  // until FR-08's New Transfer screen needed to fetch one outlet's
+  // catalogue at a time.
+  outletId?: string;
   categoryId?: string;
   isActive?: boolean;
   search?: string;
@@ -85,6 +90,7 @@ export type UpdateItemInput = Partial<Omit<CreateItemInput, 'outletId' | 'openin
 
 function buildQuery(filters: ItemFilters): string {
   const params = new URLSearchParams();
+  if (filters.outletId) params.set('outletId', filters.outletId);
   if (filters.categoryId) params.set('categoryId', filters.categoryId);
   if (filters.isActive !== undefined) params.set('isActive', String(filters.isActive));
   if (filters.search) params.set('search', filters.search);

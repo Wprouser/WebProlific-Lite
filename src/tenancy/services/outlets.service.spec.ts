@@ -33,6 +33,7 @@ describe('OutletsService', () => {
       create: jest.fn().mockResolvedValue(outlet),
       findById: jest.fn().mockResolvedValue(outlet),
       update: jest.fn().mockResolvedValue({ ...outlet, baseCurrency: 'USD' }),
+      findByIds: jest.fn().mockResolvedValue([outlet]),
     };
     const propertyRepository: Partial<PropertyRepository> = {
       findById: jest.fn().mockResolvedValue({ id: 'p1', chainId: 'c1' }),
@@ -112,5 +113,27 @@ describe('OutletsService', () => {
         NotFoundException,
       );
     });
+  });
+});
+
+describe('OutletsService.listAccessible', () => {
+  it('returns every outlet in the caller\'s effectiveOutletIds', async () => {
+    const outlet = fixtureOutlet({ id: 'o1' });
+    const outletRepository: Partial<OutletRepository> = {
+      findByIds: jest.fn().mockResolvedValue([outlet]),
+    };
+    const service = new OutletsService(
+      outletRepository as OutletRepository,
+      {} as PropertyRepository,
+      { emitAsync: jest.fn() } as unknown as EventEmitter2,
+      {} as CurrenciesService,
+      {} as StockTransactionRepository,
+    );
+
+    const request = { effectiveAccess: { effectiveOutletIds: ['o1'] } } as any;
+    const result = await service.listAccessible(request);
+
+    expect(outletRepository.findByIds).toHaveBeenCalledWith(['o1']);
+    expect(result).toEqual([outlet]);
   });
 });

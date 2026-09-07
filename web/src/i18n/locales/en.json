@@ -34,7 +34,8 @@
     "styleguide": "Styleguide",
     "soon": "Soon",
     "menuItems": "Menu Items",
-    "sales": "Sales"
+    "sales": "Sales",
+    "transfers": "Transfers"
   },
   "dashboard": {
     "title": "Overview",
@@ -1034,6 +1035,72 @@
         "MM/DD/YYYY": "MM/DD/YYYY — month first (03/04/2026 = 4 March)",
         "YYYY-MM-DD": "YYYY-MM-DD — ISO only"
       }
+    }
+  },
+  "transfers": {
+    "title": "Transfers",
+    "subtitle": "Stock moving between your outlets, from request to receipt",
+    "addNew": "New Transfer",
+    "backToList": "Back to Transfers",
+    "loadError": "Couldn't load transfers",
+    "filters": {
+      "allStatuses": "All statuses"
+    },
+    "status": {
+      "REQUESTED": "Requested",
+      "IN_TRANSIT": "In transit",
+      "RECEIVED": "Received",
+      "CANCELLED": "Cancelled"
+    },
+    "direction": {
+      "in": "Inbound",
+      "out": "Outbound"
+    },
+    "columns": {
+      "route": "Route",
+      "lines": "Lines",
+      "status": "Status",
+      "requested": "Requested",
+      "sourceItem": "Item (source)",
+      "destItem": "Item (destination)",
+      "quantity": "Quantity",
+      "actualReceived": "Actually received"
+    },
+    "empty": {
+      "title": "No transfers yet",
+      "description": "Transfers between outlets will appear here once one is requested."
+    },
+    "builder": {
+      "subtitle": "Request stock to move from one outlet to another",
+      "sourceOutlet": "From outlet",
+      "destOutlet": "To outlet",
+      "selectOutlet": "Select an outlet",
+      "linesTitle": "Items to transfer",
+      "chooseSourceFirst": "Choose the source outlet to pick items from its catalogue.",
+      "noLines": "No lines yet.",
+      "selectItem": "Select an item",
+      "itemFor": "Item for line {{line}}",
+      "quantityFor": "Quantity for line {{line}}",
+      "destItemFor": "Destination item for line {{line}}",
+      "autoDetect": "Auto-detect (recommended)",
+      "removeLine": "Remove line {{line}}",
+      "addLine": "Add line",
+      "createError": "Couldn't create this transfer",
+      "actionError": "Couldn't update this transfer",
+      "submitting": "Submitting…",
+      "submit": "Submit request"
+    },
+    "detail": {
+      "requestedOn": "Requested {{date}}",
+      "dispatch": "Dispatch",
+      "dispatching": "Dispatching…",
+      "receive": "Receive",
+      "receiving": "Recording receipt…",
+      "confirmReceipt": "Confirm receipt",
+      "cancel": "Cancel transfer",
+      "cancelReceive": "Cancel",
+      "actualReceivedFor": "Actual quantity received for {{item}}",
+      "varianceFlagged": "Variance"
     }
   }
 }

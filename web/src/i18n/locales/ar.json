@@ -34,7 +34,8 @@
     "styleguide": "دليل التصميم",
     "soon": "قريبًا",
     "menuItems": "أصناف القائمة",
-    "sales": "المبيعات"
+    "sales": "المبيعات",
+    "transfers": "التحويلات"
   },
   "dashboard": {
     "title": "نظرة عامة",
@@ -1034,6 +1035,72 @@
         "MM/DD/YYYY": "MM/DD/YYYY — الشهر أولًا (03/04/2026 = 4 مارس)",
         "YYYY-MM-DD": "YYYY-MM-DD — صيغة ISO فقط"
       }
+    }
+  },
+  "transfers": {
+    "title": "التحويلات",
+    "subtitle": "المخزون المنتقل بين منافذك، من الطلب إلى الاستلام",
+    "addNew": "تحويل جديد",
+    "backToList": "العودة إلى التحويلات",
+    "loadError": "تعذّر تحميل التحويلات",
+    "filters": {
+      "allStatuses": "كل الحالات"
+    },
+    "status": {
+      "REQUESTED": "مطلوب",
+      "IN_TRANSIT": "في الطريق",
+      "RECEIVED": "مستلم",
+      "CANCELLED": "ملغى"
+    },
+    "direction": {
+      "in": "وارد",
+      "out": "صادر"
+    },
+    "columns": {
+      "route": "المسار",
+      "lines": "الأصناف",
+      "status": "الحالة",
+      "requested": "تاريخ الطلب",
+      "sourceItem": "الصنف (المصدر)",
+      "destItem": "الصنف (الوجهة)",
+      "quantity": "الكمية",
+      "actualReceived": "الكمية المستلمة فعليًا"
+    },
+    "empty": {
+      "title": "لا توجد تحويلات بعد",
+      "description": "ستظهر التحويلات بين المنافذ هنا فور طلب أحدها."
+    },
+    "builder": {
+      "subtitle": "اطلب نقل مخزون من منفذ إلى آخر",
+      "sourceOutlet": "من منفذ",
+      "destOutlet": "إلى منفذ",
+      "selectOutlet": "اختر منفذًا",
+      "linesTitle": "الأصناف المراد نقلها",
+      "chooseSourceFirst": "اختر منفذ المصدر لاختيار الأصناف من كتالوجه.",
+      "noLines": "لا توجد أسطر بعد.",
+      "selectItem": "اختر صنفًا",
+      "itemFor": "صنف السطر {{line}}",
+      "quantityFor": "كمية السطر {{line}}",
+      "destItemFor": "صنف الوجهة للسطر {{line}}",
+      "autoDetect": "اكتشاف تلقائي (موصى به)",
+      "removeLine": "حذف السطر {{line}}",
+      "addLine": "إضافة سطر",
+      "createError": "تعذّر إنشاء هذا التحويل",
+      "actionError": "تعذّر تحديث هذا التحويل",
+      "submitting": "جارٍ الإرسال…",
+      "submit": "إرسال الطلب"
+    },
+    "detail": {
+      "requestedOn": "طُلب في {{date}}",
+      "dispatch": "إرسال",
+      "dispatching": "جارٍ الإرسال…",
+      "receive": "استلام",
+      "receiving": "جارٍ تسجيل الاستلام…",
+      "confirmReceipt": "تأكيد الاستلام",
+      "cancel": "إلغاء التحويل",
+      "cancelReceive": "إلغاء",
+      "actualReceivedFor": "الكمية الفعلية المستلمة من {{item}}",
+      "varianceFlagged": "فرق"
     }
   }
 }

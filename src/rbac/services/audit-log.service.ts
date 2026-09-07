@@ -36,6 +36,10 @@ function inferCategory(action: string, entityType: string): ActivityCategory {
   // a recipe hangs off, and the activity feed reads better grouping "created
   // Chicken Biryani" with "changed its recipe" than with raw-ingredient edits.
   if (entityType === 'MenuItem' || entityType === 'Recipe') return 'RECIPE';
+  // FR-08: without this, entityType 'Transfer' would silently fall through
+  // to SETTINGS below — ACTIVITY_CATEGORIES already has a dedicated TRANSFER
+  // bucket, it was simply never wired up before Transfers existed.
+  if (entityType === 'Transfer') return 'TRANSFER';
   // Chain/Property/Outlet (FR-00 org-structure changes) — the spec's
   // ActivityCategory enum has no dedicated org/tenancy bucket, so these
   // fall under SETTINGS as the closest fit (flagged in the FR-18 plan).
@@ -85,6 +89,13 @@ const UPDATE_ACTION_OVERRIDES = new Set([
   // Same reasoning — emailing a PO/GRN updates lastEmailedAt/lastEmailedTo.
   'EMAIL_PURCHASE_ORDER',
   'EMAIL_GRN',
+  // FR-08: dispatch/receive/cancel all mutate StockTransfer's status (plus
+  // dispatchedById/receivedById/timestamps) but aren't named with an
+  // UPDATE_ prefix, for the same activity-feed-readability reason as the PO
+  // actions above — 'dispatched Transfer #1042' reads better than 'updated'.
+  'DISPATCH_TRANSFER',
+  'RECEIVE_TRANSFER',
+  'CANCEL_TRANSFER',
 ]);
 
 function inferOperation(action: string): Operation | undefined {

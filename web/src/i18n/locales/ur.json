@@ -34,7 +34,8 @@
     "styleguide": "اسٹائل گائیڈ",
     "soon": "جلد",
     "menuItems": "مینو آئٹمز",
-    "sales": "فروخت"
+    "sales": "فروخت",
+    "transfers": "منتقلی"
   },
   "dashboard": {
     "title": "جائزہ",
@@ -1034,6 +1035,72 @@
         "MM/DD/YYYY": "MM/DD/YYYY — مہینہ پہلے (03/04/2026 = 4 مارچ)",
         "YYYY-MM-DD": "YYYY-MM-DD — صرف ISO"
       }
+    }
+  },
+  "transfers": {
+    "title": "منتقلی",
+    "subtitle": "آپ کے آؤٹ لیٹس کے درمیان جانے والا اسٹاک، درخواست سے وصولی تک",
+    "addNew": "نئی منتقلی",
+    "backToList": "منتقلی پر واپس",
+    "loadError": "منتقلیاں لوڈ نہیں ہو سکیں",
+    "filters": {
+      "allStatuses": "تمام حیثیتیں"
+    },
+    "status": {
+      "REQUESTED": "درخواست شدہ",
+      "IN_TRANSIT": "راستے میں",
+      "RECEIVED": "موصول",
+      "CANCELLED": "منسوخ"
+    },
+    "direction": {
+      "in": "آمد",
+      "out": "روانگی"
+    },
+    "columns": {
+      "route": "راستہ",
+      "lines": "اشیاء",
+      "status": "حیثیت",
+      "requested": "تاریخِ درخواست",
+      "sourceItem": "آئٹم (ماخذ)",
+      "destItem": "آئٹم (منزل)",
+      "quantity": "مقدار",
+      "actualReceived": "حقیقتاً موصول"
+    },
+    "empty": {
+      "title": "ابھی کوئی منتقلی نہیں",
+      "description": "آؤٹ لیٹس کے درمیان منتقلی درخواست ہوتے ہی یہاں نظر آئے گی۔"
+    },
+    "builder": {
+      "subtitle": "ایک آؤٹ لیٹ سے دوسرے میں اسٹاک بھیجنے کی درخواست کریں",
+      "sourceOutlet": "کس آؤٹ لیٹ سے",
+      "destOutlet": "کس آؤٹ لیٹ کو",
+      "selectOutlet": "ایک آؤٹ لیٹ منتخب کریں",
+      "linesTitle": "منتقل کی جانے والی اشیاء",
+      "chooseSourceFirst": "کیٹلاگ سے اشیاء منتخب کرنے کے لیے پہلے ماخذ آؤٹ لیٹ منتخب کریں۔",
+      "noLines": "ابھی کوئی سطر نہیں۔",
+      "selectItem": "ایک آئٹم منتخب کریں",
+      "itemFor": "سطر {{line}} کا آئٹم",
+      "quantityFor": "سطر {{line}} کی مقدار",
+      "destItemFor": "سطر {{line}} کا منزل آئٹم",
+      "autoDetect": "خودکار شناخت (تجویز کردہ)",
+      "removeLine": "سطر {{line}} حذف کریں",
+      "addLine": "سطر شامل کریں",
+      "createError": "یہ منتقلی نہیں بن سکی",
+      "actionError": "یہ منتقلی اپ ڈیٹ نہیں ہو سکی",
+      "submitting": "بھیجا جا رہا ہے…",
+      "submit": "درخواست بھیجیں"
+    },
+    "detail": {
+      "requestedOn": "{{date}} کو درخواست کی گئی",
+      "dispatch": "روانہ کریں",
+      "dispatching": "روانہ ہو رہا ہے…",
+      "receive": "وصول کریں",
+      "receiving": "وصولی درج ہو رہی ہے…",
+      "confirmReceipt": "وصولی کی تصدیق کریں",
+      "cancel": "منتقلی منسوخ کریں",
+      "cancelReceive": "منسوخ کریں",
+      "actualReceivedFor": "{{item}} کی حقیقی موصولہ مقدار",
+      "varianceFlagged": "فرق"
     }
   }
 }

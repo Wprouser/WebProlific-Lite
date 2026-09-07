@@ -34,7 +34,8 @@
     "styleguide": "स्टाइलगाइड",
     "soon": "जल्द ही",
     "menuItems": "मेन्यू आइटम",
-    "sales": "बिक्री"
+    "sales": "बिक्री",
+    "transfers": "स्थानांतरण"
   },
   "dashboard": {
     "title": "अवलोकन",
@@ -1034,6 +1035,72 @@
         "MM/DD/YYYY": "MM/DD/YYYY — महीना पहले (03/04/2026 = 4 मार्च)",
         "YYYY-MM-DD": "YYYY-MM-DD — केवल ISO"
       }
+    }
+  },
+  "transfers": {
+    "title": "स्थानांतरण",
+    "subtitle": "आपके आउटलेट्स के बीच जाने वाला स्टॉक, अनुरोध से लेकर प्राप्ति तक",
+    "addNew": "नया स्थानांतरण",
+    "backToList": "स्थानांतरण पर वापस",
+    "loadError": "स्थानांतरण लोड नहीं हो सके",
+    "filters": {
+      "allStatuses": "सभी स्थितियाँ"
+    },
+    "status": {
+      "REQUESTED": "अनुरोधित",
+      "IN_TRANSIT": "रास्ते में",
+      "RECEIVED": "प्राप्त",
+      "CANCELLED": "रद्द"
+    },
+    "direction": {
+      "in": "आवक",
+      "out": "जावक"
+    },
+    "columns": {
+      "route": "मार्ग",
+      "lines": "सामान",
+      "status": "स्थिति",
+      "requested": "अनुरोध तिथि",
+      "sourceItem": "आइटम (स्रोत)",
+      "destItem": "आइटम (गंतव्य)",
+      "quantity": "मात्रा",
+      "actualReceived": "वास्तव में प्राप्त"
+    },
+    "empty": {
+      "title": "अभी कोई स्थानांतरण नहीं",
+      "description": "आउटलेट्स के बीच स्थानांतरण अनुरोध होते ही यहाँ दिखेंगे।"
+    },
+    "builder": {
+      "subtitle": "एक आउटलेट से दूसरे में स्टॉक भेजने का अनुरोध करें",
+      "sourceOutlet": "किस आउटलेट से",
+      "destOutlet": "किस आउटलेट को",
+      "selectOutlet": "एक आउटलेट चुनें",
+      "linesTitle": "स्थानांतरित करने वाले आइटम",
+      "chooseSourceFirst": "कैटलॉग से आइटम चुनने के लिए पहले स्रोत आउटलेट चुनें।",
+      "noLines": "अभी कोई पंक्ति नहीं।",
+      "selectItem": "एक आइटम चुनें",
+      "itemFor": "पंक्ति {{line}} का आइटम",
+      "quantityFor": "पंक्ति {{line}} की मात्रा",
+      "destItemFor": "पंक्ति {{line}} का गंतव्य आइटम",
+      "autoDetect": "स्वतः पहचान (अनुशंसित)",
+      "removeLine": "पंक्ति {{line}} हटाएँ",
+      "addLine": "पंक्ति जोड़ें",
+      "createError": "यह स्थानांतरण नहीं बन सका",
+      "actionError": "यह स्थानांतरण अपडेट नहीं हो सका",
+      "submitting": "भेजा जा रहा है…",
+      "submit": "अनुरोध भेजें"
+    },
+    "detail": {
+      "requestedOn": "{{date}} को अनुरोधित",
+      "dispatch": "भेजें",
+      "dispatching": "भेजा जा रहा है…",
+      "receive": "प्राप्त करें",
+      "receiving": "प्राप्ति दर्ज हो रही है…",
+      "confirmReceipt": "प्राप्ति की पुष्टि करें",
+      "cancel": "स्थानांतरण रद्द करें",
+      "cancelReceive": "रद्द करें",
+      "actualReceivedFor": "{{item}} की वास्तविक प्राप्त मात्रा",
+      "varianceFlagged": "अंतर"
     }
   }
 }

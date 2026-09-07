@@ -165,4 +165,68 @@ describe('Tenancy (FR-00) e2e', () => {
       .get(`/api/v1/properties/${property.id}`)
       .expect(401);
   });
+
+  // Not in FR-00's original endpoint table — added for FR-08's New Transfer
+  // screen, which is the first place in the app that genuinely needs a
+  // real, multi-outlet-aware picker rather than the single-default-outlet
+  // pattern every prior screen used.
+  describe('GET /outlets (FR-08 outlet picker support)', () => {
+    it('returns every outlet the caller can reach, spanning a CHAIN-scoped grant', async () => {
+      const chain = await prisma.chain.create({ data: { name: 'Al Waha Group' } });
+      const property = await prisma.property.create({
+        data: { chainId: chain.id, name: 'Jeddah Hotel', type: 'HOTEL' },
+      });
+      const outletA = await prisma.outlet.create({
+        data: { propertyId: property.id, chainId: chain.id, name: 'Main Kitchen', type: 'KITCHEN' },
+      });
+      const outletB = await prisma.outlet.create({
+        data: { propertyId: property.id, chainId: chain.id, name: 'Poolside Bar', type: 'BAR' },
+      });
+      const { userId, token } = await createAuthedUser('owner-list@example.com');
+      await prisma.userAccess.create({
+        data: { userId, scopeType: 'CHAIN', scopeId: chain.id, role: 'CHAIN_OWNER' },
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/outlets')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(res.body.map((o: { id: string }) => o.id).sort()).toEqual([outletA.id, outletB.id].sort());
+      expect(res.body[0].name).toBeDefined();
+    });
+
+    it('does not include an outlet the caller has no grant reaching', async () => {
+      const chain = await prisma.chain.create({ data: { name: 'Al Waha Group' } });
+      const property = await prisma.property.create({
+        data: { chainId: chain.id, name: 'Jeddah Hotel', type: 'HOTEL' },
+      });
+      const mine = await prisma.outlet.create({
+        data: { propertyId: property.id, chainId: chain.id, name: 'Main Kitchen', type: 'KITCHEN' },
+      });
+      await prisma.outlet.create({
+        data: { propertyId: property.id, chainId: chain.id, name: 'Someone Else\'s Outlet', type: 'BAR' },
+      });
+      const { userId, token } = await createAuthedUser('mgr-list@example.com');
+      await prisma.userAccess.create({
+        data: { userId, scopeType: 'OUTLET', scopeId: mine.id, role: 'OUTLET_MANAGER' },
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/outlets')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(res.body.map((o: { id: string }) => o.id)).toEqual([mine.id]);
+    });
+
+    it('returns an empty array for a caller with no grants at all', async () => {
+      const { token } = await createAuthedUser('nobody@example.com');
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/outlets')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(res.body).toEqual([]);
+    });
+  });
 });

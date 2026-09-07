@@ -29,6 +29,9 @@ import { MenuItemDetail } from '@/routes/MenuItemDetail';
 import { Sales } from '@/routes/Sales';
 import { SalesImportUpload } from '@/routes/SalesImportUpload';
 import { SalesImportReview } from '@/routes/SalesImportReview';
+import { TransferList } from '@/routes/TransferList';
+import { NewTransfer } from '@/routes/NewTransfer';
+import { TransferDetail } from '@/routes/TransferDetail';
 import { getSession } from '@/lib/auth-store';
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -91,6 +94,9 @@ export function App() {
             <Route path="/sales" element={<Sales />} />
             <Route path="/sales/import" element={<SalesImportUpload />} />
             <Route path="/sales/import/:batchId" element={<SalesImportReview />} />
+            <Route path="/transfers" element={<TransferList />} />
+            <Route path="/transfers/new" element={<NewTransfer />} />
+            <Route path="/transfers/:id" element={<TransferDetail />} />
             <Route path="/styleguide" element={<Styleguide />} />
             <Route path="/alerts/:type" element={<AlertList />} />
           </Route>

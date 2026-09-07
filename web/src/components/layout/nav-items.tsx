@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
+  ArrowLeftRight,
   BarChart3,
   ChefHat,
   ClipboardList,
@@ -57,6 +58,10 @@ export const navItems: NavItem[] = [
   // batch-import flow. Top-level, same tier as Items/Stock/Suppliers — the
   // webhook path has no UI of its own, but everything else here does.
   { labelKey: 'sales', icon: Receipt, to: '/sales' },
+  // FR-08's Multi-Outlet Transfers: the first screen genuinely needing a
+  // real, multi-outlet-aware picker rather than every prior screen's
+  // single-default-outlet pattern — see outletsApi.listAccessible.
+  { labelKey: 'transfers', icon: ArrowLeftRight, to: '/transfers' },
   { labelKey: 'reports', icon: BarChart3 },
   { labelKey: 'users', icon: Users },
   { labelKey: 'styleguide', icon: Palette, to: '/styleguide' },

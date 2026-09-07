@@ -37,6 +37,19 @@ export class OutletsController {
     return outlet;
   }
 
+  /**
+   * Not in FR-00's original endpoint table -- added for FR-08's New Transfer
+   * screen, the first screen that genuinely needs a real source/destination
+   * outlet picker rather than the single-default-outlet pattern every other
+   * screen uses. No ResourceScope decorator -- this returns a caller-scoped
+   * list, not a single resource keyed by a route param, same shape as every
+   * other module's flat list() endpoint.
+   */
+  @Get('outlets')
+  listAccessible(@Req() request: RequestWithAccess) {
+    return this.outletsService.listAccessible(request);
+  }
+
   @Get('outlets/:id')
   @ResourceScope('outlet', 'id')
   findOne(@Param('id') id: string) {

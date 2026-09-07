@@ -8,6 +8,7 @@ import { OutletCurrencySettings } from '../domain/outlet-currency-settings.entit
 import { CreateOutletDto } from '../dto/create-outlet.dto';
 import { UpdateOutletDto } from '../dto/update-outlet.dto';
 import { UpdateCurrencySettingsDto } from '../dto/update-currency-settings.dto';
+import { RequestWithAccess } from '../types/request-with-access';
 import { OUTLET_CREATED_EVENT, OutletCreatedEvent } from '../events/outlet-created.event';
 import { CurrenciesService } from '../../currencies/services/currencies.service';
 import { STOCK_TRANSACTION_REPOSITORY } from '../../stock-transactions/repositories/tokens';
@@ -49,6 +50,18 @@ export class OutletsService {
     const outlet = await this.outletRepository.findById(id);
     if (!outlet) throw new NotFoundException(`Outlet ${id} not found`);
     return outlet;
+  }
+
+  /**
+   * Every outlet the caller can reach, name included. FR-08's New Transfer
+   * screen is the first place in the app that genuinely needs a real
+   * source/destination outlet picker, rather than every existing screen's
+   * established pattern of operating on the caller's single default outlet.
+   * Not a fix for the still-mocked FR-00 ContextSwitcher (see
+   * ContextSwitcher.tsx) — just the smallest real thing this screen needs.
+   */
+  async listAccessible(request: RequestWithAccess): Promise<Outlet[]> {
+    return this.outletRepository.findByIds(request.effectiveAccess!.effectiveOutletIds);
   }
 
   async update(id: string, dto: UpdateOutletDto): Promise<Outlet> {

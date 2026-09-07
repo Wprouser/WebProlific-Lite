@@ -27,4 +27,10 @@ export interface OutletRepository {
   findIdsByPropertyId(propertyId: string): Promise<string[]>;
   deactivateManyByPropertyId(propertyId: string): Promise<void>;
   deactivateManyByChainId(chainId: string): Promise<void>;
+  /** Every outlet in this set, name included — FR-08 (Transfers) is the
+   * first screen genuinely needing a real outlet picker rather than
+   * operating on the caller's single default outlet, so this is a small,
+   * necessary addition rather than a full fix for the still-mocked FR-00
+   * context switcher (see ContextSwitcher.tsx). */
+  findByIds(ids: string[]): Promise<Outlet[]>;
 }
