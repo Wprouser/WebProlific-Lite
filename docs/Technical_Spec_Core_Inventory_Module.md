@@ -124,6 +124,7 @@ Cache the resolved `effectiveOutletIds` per request (not per login session) so r
 | `GET` | `/properties/:id` | Property detail incl. its outlets |
 | `PATCH` | `/properties/:id` | Update property |
 | `POST` | `/properties/:id/outlets` | Add an outlet to a property |
+| `GET` | `/outlets` | List outlets the caller has access to (`effectiveOutletIds`), with names/property/chain context — used by any screen needing an outlet picker (e.g., FR-08's transfer form) |
 | `GET` | `/outlets/:id` | Outlet detail |
 | `PATCH` | `/outlets/:id` | Update outlet settings |
 | `GET` | `/chains/:id/hierarchy` | Full nested tree: chain → properties → outlets (for building nav/switcher UI) |
@@ -133,12 +134,28 @@ Cache the resolved `effectiveOutletIds` per request (not per login session) so r
 - Deleting/deactivating a `Property` or `Chain` cascades a soft-deactivation to all child outlets (never a hard delete — historical transactional data must remain queryable).
 - **Property/Outlet switcher UI:** since a user may have access to multiple properties or outlets (e.g., a CHAIN_OWNER, or a STORE_STAFF who covers two outlets), the frontend needs a persistent context switcher (typically in the top nav) showing "currently viewing: [Outlet name] — [Property name]"; this selection is client-side state, not server session state, since a user's effective access list can span many outlets simultaneously.
 
+### Screens (Frontend)
+
+This section was missing from the original FR-00 spec, in the same way FR-05, FR-06, and FR-08 initially shipped without one. The original assumption — that Chain/Property/Outlet creation is purely "internal/admin-provisioning" done by hand — doesn't hold up for the ongoing lifecycle of a real multi-property customer, who needs to add a new hotel or a new restaurant within one themselves, without requiring manual intervention every time.
+
+**Organization / Outlets screen** (`/organization`, top-level nav entry — visible to CHAIN_OWNER and PROPERTY_MANAGER only; other roles have no reason to see chain/property structure):
+- **Hierarchy tree view**: Chain → Properties → Outlets, expandable, each node showing name, type, and active/inactive status. This is the same data as `GET /chains/:id/hierarchy`, rendered as a real navigable tree rather than only powering the header breadcrumb.
+- **Add Property** action (CHAIN_OWNER only) — name, type, address, timezone.
+- **Add Outlet** action (available to CHAIN_OWNER anywhere in the tree, and to PROPERTY_MANAGER only within their own property) — name, type, base currency (defaults from the property/chain, per FR-16, overridable), PO approval threshold.
+- **Edit** on any node opens that Property/Outlet's settings (matching the fields already defined in their respective `PATCH` endpoints).
+- Deactivating a Property/Outlet from this screen surfaces the cascade warning described in Business Logic before confirming, since it affects every child outlet.
+
+**Context Switcher (header breadcrumb)** — this component already exists visually (built during FR-17) but has been running on **mock fixture data since it was created**, never wired to real `GET /chains/:id/hierarchy` or `GET /outlets` data. This must be corrected as part of this Screens section, not left as a permanent placeholder — it's the single most-visible piece of chrome in the entire application (present on every screen) and currently cannot reflect a real customer's actual structure.
+
 ### Acceptance Criteria
 - [ ] A CHAIN_OWNER can view/manage data across every property and outlet in their chain without explicit per-outlet grants
 - [ ] A PROPERTY_MANAGER cannot access outlets belonging to a different property, even within the same chain
 - [ ] Granting a user OUTLET-scoped access to a single outlet does not expose sibling outlets under the same property
 - [ ] `effectiveOutletIds` resolution correctly unions overlapping grants (e.g., a CHAIN grant plus an additional OUTLET grant elsewhere doesn't cause duplicate or missing outlets)
 - [ ] Deactivating a Property deactivates all its Outlets but preserves their historical data
+- [ ] A CHAIN_OWNER can create a new Property and a new Outlet entirely through the UI, with no manual database/API intervention required
+- [ ] A PROPERTY_MANAGER can add a new Outlet within their own property, but cannot create a new Property or add an outlet to a different property
+- [ ] The header Context Switcher reflects the real, current Chain/Property/Outlet hierarchy for the logged-in user — not fixture data — and updates correctly if that hierarchy changes
 
 ---
 
@@ -293,8 +310,16 @@ Restructured as a dedicated detail view (not just an edit form) — reference: t
 - **Tabs:**
   - **Overview** — the item's master data: category, unit, reorder point (min/max stock), shelf life, storage location, cost price, default tax, default supplier, purchase GL account (if set), and the image gallery.
   - **Transactions** — a filtered view of `StockTransaction` rows for this item specifically (reuses the FR-02 transaction list component, pre-filtered to `itemId`).
+  - **Used In** — a reverse lookup: every current Menu Item recipe (FR-05) that references this raw ingredient, directly or via a sub-recipe. This is the raw-ingredient equivalent of FR-05's sub-recipe "Used In" tab, extended down to the ingredient level, so standing on "Tomatoes" shows "used in: Caesar Salad, Bruschetta, Margherita Pizza" — genuinely useful context for deciding what a shortage or price change actually affects, and it's what makes a low-stock/expiry alert on this item immediately actionable rather than abstract (see FR-07 wiring below). Only searches **current** recipe versions — a menu item's historical, superseded recipe versions don't matter for "what's affected right now."
   - **History** — this item's `TransactionLog` entries (FR-18) — the field-level change history (e.g., "Reorder point changed from 10 to 15 on [date]"), not the same data as the Transactions tab.
 - **Right-hand stock summary panel:** simplified from the reference (which splits Accounting Stock vs. Physical Stock with a Committed Stock line — not applicable here, since this system has no order-reservation concept). Shows just: **Current Stock** (`Item.currentStock`), **Stock Value** (`currentStock × costPrice`), and, if set, **Opening Stock** (the quantity/rate captured at item creation, kept visible as a reference point rather than only living inside transaction history).
+
+**API Endpoint:**
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/items/:id/used-in` | List every current Menu Item recipe that consumes this item, directly or via a nested sub-recipe |
+
+**FR-07 wiring — alerts become actionable, not just informational:** when a low-stock or expiry alert fires on an item (FR-07), the alert display calls this same lookup and shows the affected menu item count inline (e.g., "Tomatoes — Low Stock — affects 3 menu items"), with a link through to the full list. This turns an abstract "this item is running low" into an immediately actionable "these specific dishes are at risk" — the practical payoff of building this traceability in the first place.
 
 ### Business Logic
 - On soft-delete/deactivate (`DELETE /items/:id`): check for any `PurchaseOrder` with status not in `[Closed, Cancelled, Rejected]` referencing this item → if found, return `409` with message "Cannot deactivate item with open purchase orders."
@@ -319,6 +344,8 @@ Restructured as a dedicated detail view (not just an edit form) — reference: t
 - [ ] A unit with no Base Unit set (e.g., Box, Pack) works normally with no conversion capability — this is valid, not an error
 - [ ] The item detail screen has no "Delete" action anywhere — only "Mark as Inactive" / "Reactivate"
 - [ ] Deleting the primary image (when other images exist) automatically promotes another image to primary, never leaving the item with zero primary images while images still exist
+- [ ] An item's "Used In" tab correctly lists every current-version menu item recipe that consumes it, including via a nested sub-recipe, and excludes superseded recipe versions
+- [ ] A low-stock or expiry alert (FR-07) on an item shows the count of affected menu items inline, with a working link through to the full list
 
 ---
 
@@ -1916,7 +1943,86 @@ model TransactionLog {
 
 ---
 
-## Suggested Build Order for a Coding Agent
+## FR-19: Stocktake & Variance Reporting (Theoretical vs. Actual)
+
+### Why this exists
+Every prior FR calculates what stock *should* be — FR-04 records what was purchased, FR-05/FR-06 calculate what recipes should have consumed, FR-02 keeps a running `currentStock`. None of them confirm that number against physical reality. The gap between "what the system calculates" (theoretical) and "what's actually on the shelf" (actual) is exactly where waste, theft, portioning drift, and data-entry errors hide — invisibly, until someone does a manual count and finds a large, unexplained variance with no way to trace where it came from. This FR closes that loop: a real physical stock count, compared against the system's calculated position, with the variance itself becoming a first-class, reportable number.
+
+### Data Model
+```prisma
+model StockCount {
+  id            String   @id @default(uuid())
+  outletId      String
+  countedById   String
+  status        String   @default("IN_PROGRESS")  // 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
+  scopeType     String   // 'FULL_OUTLET' | 'BY_CATEGORY' | 'BY_STORAGE_LOCATION' — a count doesn't have to cover every item at once
+  scopeValue    String?  // categoryId or storageLocation string, when scopeType is not FULL_OUTLET
+  countDate     DateTime @default(now())
+  completedAt   DateTime?
+  notes         String?
+  lines         StockCountLine[]
+
+  @@index([outletId, status])
+}
+
+model StockCountLine {
+  id                String   @id @default(uuid())
+  stockCountId      String
+  itemId            String
+  systemQuantity    Decimal  @db.Decimal(10,3)  // Item.currentStock, snapshotted the moment this count line was created — never live-recalculated later, so the comparison is a fair point-in-time snapshot, not a moving target
+  countedQuantity   Decimal? @db.Decimal(10,3)  // physical count entered by staff; null until actually counted
+  varianceQuantity  Decimal? @db.Decimal(10,3)  // countedQuantity - systemQuantity, computed on save
+  varianceValue     Decimal? @db.Decimal(12,2)  // varianceQuantity * Item.costPrice at the time of counting — the monetary size of the gap
+  notes             String?  // e.g. "spillage observed," "found in wrong storage location"
+
+  @@index([stockCountId])
+  @@index([itemId])
+}
+```
+
+### API Endpoints
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/stock-counts` | Start a new count — `scopeType`/`scopeValue` determine which items get snapshotted as lines |
+| `GET` | `/stock-counts` | List counts for the outlet, filterable by status/date |
+| `GET` | `/stock-counts/:id` | Detail — all lines, counted/not-yet-counted, running variance |
+| `PATCH` | `/stock-counts/:id/lines/:lineId` | Enter/update a line's `countedQuantity` |
+| `POST` | `/stock-counts/:id/complete` | Finalize — computes final variances, creates reconciling `StockTransaction`s, locks the count from further editing |
+| `POST` | `/stock-counts/:id/cancel` | Abandon an in-progress count with no stock impact |
+| `GET` | `/reports/variance` | Theoretical-vs-actual variance report — filterable by date range, category, item; aggregates `varianceValue` |
+
+**POST /stock-counts — Request:**
+```json
+{ "scopeType": "BY_CATEGORY", "scopeValue": "uuid-dairy-category" }
+```
+**Response 201:** the new `StockCount` with `lines` pre-populated (one per active item in scope), each with `systemQuantity` snapshotted and `countedQuantity: null`.
+
+### Business Logic
+- **Starting a count snapshots `systemQuantity` immediately**, for every active item matching the scope, at the moment of creation — not recalculated at completion time. This matters because stock can keep moving (sales, receipts) while a physical count is in progress; the comparison must be against what the system said *when counting started*, not a moving target.
+- **Scoped, partial counts are a first-class feature, not a fallback** — real operations rarely count their entire inventory in one sitting; counting by category ("just dairy today") or by storage location ("just the walk-in freezer") is the normal, practical pattern, matching how real F&B counting actually happens.
+- **Completing a count is the moment of real stock impact**, mirroring the "Post Received Items" / "Run BOM" pattern already established elsewhere in this spec — before committing, the completion flow shows a **variance preview** (every line with a non-zero variance, its quantity and monetary size) so the user reviews before the count reconciles stock, not after.
+- On completion, for each line with `varianceQuantity != 0`, create a `StockTransaction` (`type: ADJUSTMENT_IN` if positive, `ADJUSTMENT_OUT` if negative) via the FR-02 service — the physical count becomes the new source of truth for `Item.currentStock` going forward, exactly like any other stock adjustment.
+- Lines with `countedQuantity` still `null` at completion time are treated as **not counted, not zero** — they're excluded from variance calculation and stock is left untouched for that item, rather than assuming an uncounted item has zero stock (a dangerous assumption that would wipe out real inventory data).
+- This wires into FR-18 exactly like every other stock-affecting action: an `ActivityLog` entry for the count completion, and `TransactionLog` entries for each resulting adjustment.
+- **Variance Report** (`GET /reports/variance`) aggregates `varianceValue` across completed counts — by item, by category, and over a date range — surfacing exactly the "where is the money going" question this FR exists to answer. This is period/trend reporting, so it belongs alongside FR-10's reporting suite, not the point-in-time Dashboard snapshot (FR-08's dashboard work already drew this same distinction).
+- **Large variances can optionally feed FR-07's alert mechanism** (e.g., "Dairy category showed a 12% negative variance on last count") — this is a reasonable follow-on enhancement once this FR is stable, not a requirement to build in the first pass.
+
+### Screens (Frontend)
+- **Stock Counts list** (`/stock-counts`) — past and in-progress counts, status, scope, date, variance total once completed. "+ New Count" button.
+- **New Count screen** — choose scope (Full Outlet / By Category / By Storage Location), starts the count and moves directly into the counting screen.
+- **Count Entry screen** (`/stock-counts/:id`) — the actual counting interface, designed for speed on a phone/tablet in a kitchen or storage area (per FR-17's responsive/touch-target requirements): items listed in a sensible order (e.g., grouped by storage location), a large, fast quantity-entry field per line, running progress indicator (X of Y items counted). This screen's usability matters more than most — real staff will be standing in a walk-in freezer with a phone, not sitting at a desk.
+- **Complete Count flow** — the variance preview (per Business Logic) before final confirmation, then a completion summary.
+- **Variance Report** — part of FR-10's reporting suite: filterable by date range/category/item, showing variance in both quantity and monetary value, with the worst-variance items/categories surfaced first.
+
+### Acceptance Criteria
+- [ ] Starting a count snapshots each line's `systemQuantity` at that moment — later stock movement during the count does not change already-snapshotted lines
+- [ ] A count can be scoped to a category or storage location, not only a full-outlet count
+- [ ] Completing a count with variances creates the correct `ADJUSTMENT_IN`/`ADJUSTMENT_OUT` `StockTransaction` for each variant line, and leaves uncounted items completely untouched
+- [ ] The completion flow shows a variance preview before committing, mirroring the established "preview before real stock impact" pattern
+- [ ] The Variance Report correctly aggregates variance by item and by category, in both quantity and monetary terms, over a selected date range
+- [ ] The Count Entry screen is genuinely fast to use on a mobile/tablet viewport — large touch targets, minimal steps per item, per FR-17's responsive standards
+
+---
 
 Given dependencies between modules, implement in this order:
 1. **Multi-Tenant Hierarchy (FR-00)** — Chain/Property/Outlet models and the `UserAccess` scope-resolution logic; everything else depends on `effectiveOutletIds` being resolvable
@@ -1934,6 +2040,7 @@ Given dependencies between modules, implement in this order:
 13. **Multi-outlet/Multi-property Transfers (FR-08)**
 14. **Barcode Scanning (FR-09)** — mostly client-side, thin backend
 15. **Reporting (FR-10)** — read-only, depends on all prior data existing, must respect locale/currency formatting and property/chain-level rollups
-16. **Offline Sync (FR-12)** — depends on FR-02 being stable and idempotent
+16. **Stocktake & Variance Reporting (FR-19)** — depends on FR-02 (adjustments), FR-05/FR-06 (theoretical consumption), and pairs naturally with FR-10's reporting suite for the Variance Report
+17. **Offline Sync (FR-12)** — depends on FR-02 being stable and idempotent
 
 Each numbered item above is sized to be a reasonable single implementation pass (with its own tests) for an agent working sprint-by-sprint, matching the SDLC document's Phase 1/2 breakdown (Section 8).
