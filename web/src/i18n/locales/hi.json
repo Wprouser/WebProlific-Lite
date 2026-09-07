@@ -321,6 +321,24 @@
       "errorMinMax": "न्यूनतम स्टॉक अधिकतम स्टॉक से कम होना चाहिए",
       "saveError": "सेव नहीं हो सका। कृपया फिर से कोशिश करें।"
     },
+    "bulkImport": {
+      "addAction": "बल्क इंपोर्ट",
+      "title": "आइटम बल्क इंपोर्ट करें",
+      "backToItems": "आइटम पर वापस जाएँ",
+      "fileLabel": "आइटम फ़ाइल (CSV या Excel)",
+      "formatTitle": "फ़ाइल में क्या होना चाहिए",
+      "formatColumns": "कम से कम Name, Category, SKU, Unit, Min Stock, Max Stock, और Cost Price के लिए कॉलम।",
+      "formatOptional": "Barcode, Shelf Life Days, Purchase GL Account, Default Tax Rate, Default Supplier, Storage Location, और Opening Stock (Quantity / Rate) सभी वैकल्पिक हैं।",
+      "formatNames": "Category, Unit, Default Supplier, और Default Tax Rate का मिलान उनके मौजूदा नाम से बिल्कुल वैसा ही किया जाता है — यदि किसी पंक्ति को कोई ऐसा नाम चाहिए जो अभी मौजूद नहीं है, तो पहले उसे बना लें।",
+      "continue": "अपलोड करें और इंपोर्ट करें",
+      "uploading": "इंपोर्ट हो रहा है…",
+      "uploadError": "यह फ़ाइल इंपोर्ट नहीं हो सकी",
+      "successTitle": "{{count}} आइटम इंपोर्ट किए गए",
+      "errorsTitle": "कुछ भी इंपोर्ट नहीं हुआ — कुछ भी बनाने से पहले हर पंक्ति की जांच की जाती है। इन पंक्तियों को ठीक करें और फिर से कोशिश करें:",
+      "errorRow": "पंक्ति {{row}}: {{error}}",
+      "tryAgain": "दूसरी फ़ाइल चुनें",
+      "viewItems": "आइटम देखें"
+    },
     "categoryManager": {
       "title": "श्रेणियां प्रबंधित करें",
       "description": "श्रेणियां सूची और रिपोर्ट में आइटम व्यवस्थित करने में मदद करती हैं।",

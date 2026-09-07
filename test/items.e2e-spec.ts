@@ -55,6 +55,8 @@ describe('Item Master (FR-01) e2e', () => {
     await prisma.item.deleteMany();
     await prisma.category.deleteMany();
     await prisma.unitOfMeasure.deleteMany();
+    await prisma.supplier.deleteMany();
+    await prisma.taxRate.deleteMany();
     await prisma.userAccess.deleteMany();
     await prisma.outlet.deleteMany();
     await prisma.property.deleteMany();
@@ -887,6 +889,217 @@ describe('Item Master (FR-01) e2e', () => {
         .set('Authorization', `Bearer ${token}`)
         .send({ baseUnitId: millilitre.id, conversionFactor: '1' })
         .expect(400);
+    });
+  });
+
+  describe('Bulk Import (FR-01)', () => {
+    const HEADER = 'Name,Category,SKU,Unit,Min Stock,Max Stock,Cost Price';
+
+    it('AC: every valid row is created, resolving category/unit names, in one request', async () => {
+      const { outlet } = await chainWithOutlet();
+      await category(outlet.id, 'Dry Goods');
+      await unitOfMeasure(outlet.id, 'Kilogram', 'kg');
+      const { token } = await actor('bulk1@example.com', 'OUTLET', outlet.id, 'OUTLET_MANAGER');
+
+      const csv = [
+        HEADER,
+        'Basmati Rice,Dry Goods,RICE-BULK-001,Kilogram,10,100,85.50',
+        'Chicken Breast,Dry Goods,CHKN-BULK-001,Kilogram,5,50,32.00',
+      ].join('\n');
+
+      const res = await api()
+        .post('/api/v1/items/bulk-import')
+        .set('Authorization', `Bearer ${token}`)
+        .field('outletId', outlet.id)
+        .attach('file', Buffer.from(csv), 'items.csv')
+        .expect(201);
+
+      expect(res.body.createdCount).toBe(2);
+      const items = await prisma.item.findMany({ where: { outletId: outlet.id } });
+      expect(items).toHaveLength(2);
+      expect(items.map((i) => i.sku).sort()).toEqual(['CHKN-BULK-001', 'RICE-BULK-001']);
+    });
+
+    it('AC: resolves opening stock into a real OPENING_BALANCE StockTransaction, matching the single-create path', async () => {
+      const { outlet } = await chainWithOutlet();
+      await category(outlet.id, 'Dry Goods');
+      await unitOfMeasure(outlet.id, 'Kilogram', 'kg');
+      const { token } = await actor('bulk2@example.com', 'OUTLET', outlet.id, 'OUTLET_MANAGER');
+
+      const csv = [
+        `${HEADER},Opening Stock,Opening Stock Rate`,
+        'Basmati Rice,Dry Goods,RICE-BULK-002,Kilogram,10,100,85.50,25,85.50',
+      ].join('\n');
+
+      await api()
+        .post('/api/v1/items/bulk-import')
+        .set('Authorization', `Bearer ${token}`)
+        .field('outletId', outlet.id)
+        .attach('file', Buffer.from(csv), 'items.csv')
+        .expect(201);
+
+      const item = await prisma.item.findFirstOrThrow({ where: { sku: 'RICE-BULK-002' } });
+      expect(item.currentStock.toFixed(3)).toBe('25.000');
+      const tx = await prisma.stockTransaction.findFirstOrThrow({ where: { itemId: item.id } });
+      expect(tx.type).toBe('OPENING_BALANCE');
+    });
+
+    it('AC: validates every row before committing any — one bad row rejects the whole batch, creating nothing', async () => {
+      const { outlet } = await chainWithOutlet();
+      await category(outlet.id, 'Dry Goods');
+      await unitOfMeasure(outlet.id, 'Kilogram', 'kg');
+      const { token } = await actor('bulk3@example.com', 'OUTLET', outlet.id, 'OUTLET_MANAGER');
+
+      const csv = [
+        HEADER,
+        'Basmati Rice,Dry Goods,RICE-BULK-003,Kilogram,10,100,85.50',
+        'Bad Row,Nonexistent Category,RICE-BULK-004,Kilogram,10,100,85.50',
+      ].join('\n');
+
+      const res = await api()
+        .post('/api/v1/items/bulk-import')
+        .set('Authorization', `Bearer ${token}`)
+        .field('outletId', outlet.id)
+        .attach('file', Buffer.from(csv), 'items.csv')
+        .expect(400);
+
+      expect(res.body.errors).toEqual([
+        { row: 2, error: expect.stringContaining('Nonexistent Category') },
+      ]);
+      const items = await prisma.item.findMany({ where: { outletId: outlet.id } });
+      expect(items).toHaveLength(0);
+    });
+
+    it('AC: reports a duplicate SKU as a per-row error, matching the spec\'s illustrative shape', async () => {
+      const { outlet } = await chainWithOutlet();
+      const cat = await category(outlet.id, 'Dry Goods');
+      const unit = await unitOfMeasure(outlet.id, 'Kilogram', 'kg');
+      const { token } = await actor('bulk4@example.com', 'OUTLET', outlet.id, 'OUTLET_MANAGER');
+      await api()
+        .post('/api/v1/items')
+        .set('Authorization', `Bearer ${token}`)
+        .send(itemPayload({ outletId: outlet.id, categoryId: cat.id, unitId: unit.id, sku: 'RICE-BULK-005' }))
+        .expect(201);
+
+      const csv = [HEADER, 'Basmati Rice,Dry Goods,RICE-BULK-005,Kilogram,10,100,85.50'].join('\n');
+      const res = await api()
+        .post('/api/v1/items/bulk-import')
+        .set('Authorization', `Bearer ${token}`)
+        .field('outletId', outlet.id)
+        .attach('file', Buffer.from(csv), 'items.csv')
+        .expect(400);
+
+      expect(res.body.errors).toEqual([{ row: 1, error: expect.stringContaining('already exists') }]);
+    });
+
+    it('rejects a duplicate SKU within the same file', async () => {
+      const { outlet } = await chainWithOutlet();
+      await category(outlet.id, 'Dry Goods');
+      await unitOfMeasure(outlet.id, 'Kilogram', 'kg');
+      const { token } = await actor('bulk5@example.com', 'OUTLET', outlet.id, 'OUTLET_MANAGER');
+
+      const csv = [
+        HEADER,
+        'Basmati Rice,Dry Goods,RICE-BULK-006,Kilogram,10,100,85.50',
+        'Basmati Rice 2,Dry Goods,RICE-BULK-006,Kilogram,10,100,85.50',
+      ].join('\n');
+      const res = await api()
+        .post('/api/v1/items/bulk-import')
+        .set('Authorization', `Bearer ${token}`)
+        .field('outletId', outlet.id)
+        .attach('file', Buffer.from(csv), 'items.csv')
+        .expect(400);
+
+      expect(res.body.errors).toEqual([{ row: 2, error: expect.stringContaining('duplicate SKU') }]);
+    });
+
+    it('resolves an optional defaultSupplier/defaultTaxRate by name', async () => {
+      const { outlet } = await chainWithOutlet();
+      await category(outlet.id, 'Dry Goods');
+      await unitOfMeasure(outlet.id, 'Kilogram', 'kg');
+      const supplier = await prisma.supplier.create({ data: { outletId: outlet.id, name: 'Al-Fahad Trading' } });
+      const taxRate = await prisma.taxRate.create({
+        data: { outletId: outlet.id, name: 'VAT 15%', ratePercent: '15.00' },
+      });
+      const { token } = await actor('bulk6@example.com', 'OUTLET', outlet.id, 'OUTLET_MANAGER');
+
+      const csv = [
+        `${HEADER},Default Supplier,Default Tax Rate`,
+        'Basmati Rice,Dry Goods,RICE-BULK-007,Kilogram,10,100,85.50,Al-Fahad Trading,VAT 15%',
+      ].join('\n');
+      await api()
+        .post('/api/v1/items/bulk-import')
+        .set('Authorization', `Bearer ${token}`)
+        .field('outletId', outlet.id)
+        .attach('file', Buffer.from(csv), 'items.csv')
+        .expect(201);
+
+      const item = await prisma.item.findFirstOrThrow({ where: { sku: 'RICE-BULK-007' } });
+      expect(item.defaultSupplierId).toBe(supplier.id);
+      expect(item.defaultTaxRateId).toBe(taxRate.id);
+    });
+
+    it('rejects an unresolvable category/unit name with a clear per-row error', async () => {
+      const { outlet } = await chainWithOutlet();
+      const { token } = await actor('bulk7@example.com', 'OUTLET', outlet.id, 'OUTLET_MANAGER');
+
+      const csv = [HEADER, 'Basmati Rice,Nonexistent,RICE-BULK-008,Nonexistent,10,100,85.50'].join('\n');
+      const res = await api()
+        .post('/api/v1/items/bulk-import')
+        .set('Authorization', `Bearer ${token}`)
+        .field('outletId', outlet.id)
+        .attach('file', Buffer.from(csv), 'items.csv')
+        .expect(400);
+
+      expect(res.body.errors[0].error).toMatch(/Category "Nonexistent"/);
+    });
+
+    it('rejects a file with no usable header row with a clear format error', async () => {
+      const { outlet } = await chainWithOutlet();
+      const { token } = await actor('bulk8@example.com', 'OUTLET', outlet.id, 'OUTLET_MANAGER');
+
+      await api()
+        .post('/api/v1/items/bulk-import')
+        .set('Authorization', `Bearer ${token}`)
+        .field('outletId', outlet.id)
+        .attach('file', Buffer.from('junk,data\n1,2'), 'items.csv')
+        .expect(400);
+    });
+
+    it('rejects STORE_STAFF from bulk-importing items', async () => {
+      const { outlet } = await chainWithOutlet();
+      await category(outlet.id, 'Dry Goods');
+      await unitOfMeasure(outlet.id, 'Kilogram', 'kg');
+      const { token } = await actor('bulk9@example.com', 'OUTLET', outlet.id, 'STORE_STAFF');
+
+      const csv = [HEADER, 'Basmati Rice,Dry Goods,RICE-BULK-009,Kilogram,10,100,85.50'].join('\n');
+      await api()
+        .post('/api/v1/items/bulk-import')
+        .set('Authorization', `Bearer ${token}`)
+        .field('outletId', outlet.id)
+        .attach('file', Buffer.from(csv), 'items.csv')
+        .expect(403);
+    });
+
+    it('AC: produces a CREATE_ITEM ActivityLog entry per created item', async () => {
+      const { outlet } = await chainWithOutlet();
+      await category(outlet.id, 'Dry Goods');
+      await unitOfMeasure(outlet.id, 'Kilogram', 'kg');
+      const { token, userId } = await actor('bulk10@example.com', 'OUTLET', outlet.id, 'OUTLET_MANAGER');
+
+      const csv = [HEADER, 'Basmati Rice,Dry Goods,RICE-BULK-010,Kilogram,10,100,85.50'].join('\n');
+      const res = await api()
+        .post('/api/v1/items/bulk-import')
+        .set('Authorization', `Bearer ${token}`)
+        .field('outletId', outlet.id)
+        .attach('file', Buffer.from(csv), 'items.csv')
+        .expect(201);
+
+      const activity = await prisma.activityLog.findFirst({
+        where: { action: 'CREATE_ITEM', entityId: res.body.items[0].id },
+      });
+      expect(activity).not.toBeNull();
+      expect(activity?.userId).toBe(userId);
     });
   });
 });

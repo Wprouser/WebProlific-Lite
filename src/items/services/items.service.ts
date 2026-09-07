@@ -1,18 +1,42 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { ITEM_REPOSITORY } from '../repositories/tokens';
+import { ITEM_REPOSITORY, CATEGORY_REPOSITORY, UNIT_OF_MEASURE_REPOSITORY } from '../repositories/tokens';
 import { ItemRepository } from '../repositories/item.repository';
+import { CategoryRepository } from '../repositories/category.repository';
+import { UnitOfMeasureRepository } from '../repositories/unit-of-measure.repository';
 import { Item } from '../domain/item.entity';
 import { CreateItemDto } from '../dto/create-item.dto';
 import { UpdateItemDto } from '../dto/update-item.dto';
 import { QueryItemsDto } from '../dto/query-items.dto';
 import { RequestWithAccess } from '../../tenancy/types/request-with-access';
 import { assertOutletAccess } from '../../tenancy/access.util';
+import { SUPPLIER_REPOSITORY } from '../../suppliers/repositories/tokens';
+import { SupplierRepository } from '../../suppliers/repositories/supplier.repository';
+import { TAX_RATE_REPOSITORY } from '../../tax-rates/repositories/tokens';
+import { TaxRateRepository } from '../../tax-rates/repositories/tax-rate.repository';
+import { ItemsFileFormatError, parseItemsFile } from '../lib/parse-items-file';
+import { BulkImportNameLookups, ResolvedBulkImportRow, validateBulkImportRow } from '../lib/validate-bulk-import-row';
 
 const MUTATE_ROLES = ['CHAIN_OWNER', 'PROPERTY_MANAGER', 'OUTLET_MANAGER'] as const;
 
+export interface BulkImportRowError {
+  row: number;
+  error: string;
+}
+
+export interface BulkImportItemsResult {
+  createdCount: number;
+  items: Item[];
+}
+
 @Injectable()
 export class ItemsService {
-  constructor(@Inject(ITEM_REPOSITORY) private readonly itemRepository: ItemRepository) {}
+  constructor(
+    @Inject(ITEM_REPOSITORY) private readonly itemRepository: ItemRepository,
+    @Inject(CATEGORY_REPOSITORY) private readonly categoryRepository: CategoryRepository,
+    @Inject(UNIT_OF_MEASURE_REPOSITORY) private readonly unitRepository: UnitOfMeasureRepository,
+    @Inject(SUPPLIER_REPOSITORY) private readonly supplierRepository: SupplierRepository,
+    @Inject(TAX_RATE_REPOSITORY) private readonly taxRateRepository: TaxRateRepository,
+  ) {}
 
   async create(request: RequestWithAccess, dto: CreateItemDto): Promise<Item> {
     assertOutletAccess(request, dto.outletId, [...MUTATE_ROLES]);
@@ -51,6 +75,96 @@ export class ItemsService {
       storageLocation: source.storageLocation ?? undefined,
       performedById: request.user!.id,
     });
+  }
+
+  /**
+   * Spec: "validate every row before committing any; return a per-row
+   * error report ... rather than partial success." Two phases: every row
+   * is checked (name→id resolution for category/unit/supplier/tax-rate,
+   * format, in-file and DB-level SKU/barcode uniqueness) before anything is
+   * written; only if every row passes does the commit phase run, reusing
+   * `create()` per row so bulk-imported items go through the exact same
+   * validated path (including opening-stock's OPENING_BALANCE transaction)
+   * as a single manual create.
+   */
+  async bulkImport(
+    request: RequestWithAccess,
+    outletId: string,
+    file: { buffer: Buffer; originalName: string },
+  ): Promise<BulkImportItemsResult> {
+    assertOutletAccess(request, outletId, [...MUTATE_ROLES]);
+
+    let parsedRows;
+    try {
+      parsedRows = await parseItemsFile(file.originalName, file.buffer);
+    } catch (err) {
+      if (err instanceof ItemsFileFormatError) throw new BadRequestException(err.message);
+      throw err;
+    }
+
+    const scope = { accessibleOutletIds: [outletId], outletId, isActive: true };
+    const [categories, units, suppliers, taxRates] = await Promise.all([
+      this.categoryRepository.findScoped(scope),
+      this.unitRepository.findScoped(scope),
+      this.supplierRepository.findScoped(scope),
+      this.taxRateRepository.findScoped(scope),
+    ]);
+    const lookups: BulkImportNameLookups = {
+      categoryIdByName: new Map(categories.map((c) => [c.name.toLowerCase(), c.id])),
+      unitIdByName: new Map(units.map((u) => [u.name.toLowerCase(), u.id])),
+      supplierIdByName: new Map(suppliers.map((s) => [s.name.toLowerCase(), s.id])),
+      taxRateIdByName: new Map(taxRates.map((t) => [t.name.toLowerCase(), t.id])),
+    };
+
+    const seenSkus = new Set<string>();
+    const seenBarcodes = new Set<string>();
+    const errors: BulkImportRowError[] = [];
+    const validRows: ResolvedBulkImportRow[] = [];
+
+    for (const row of parsedRows) {
+      const result = validateBulkImportRow(row, lookups, seenSkus, seenBarcodes);
+      if (!result.success) {
+        errors.push({ row: row.rowNumber, error: result.error });
+        continue;
+      }
+      if (await this.itemRepository.findBySku(result.row.sku)) {
+        errors.push({ row: row.rowNumber, error: `An item with SKU "${result.row.sku}" already exists` });
+        continue;
+      }
+      if (result.row.barcode && (await this.itemRepository.findByBarcode(result.row.barcode))) {
+        errors.push({ row: row.rowNumber, error: `An item with barcode "${result.row.barcode}" already exists` });
+        continue;
+      }
+      validRows.push(result.row);
+    }
+
+    if (errors.length > 0) {
+      throw new BadRequestException({ message: 'Bulk import failed validation — no items were created', errors });
+    }
+
+    const items: Item[] = [];
+    for (const row of validRows) {
+      const item = await this.create(request, {
+        outletId,
+        name: row.name,
+        categoryId: row.categoryId,
+        sku: row.sku,
+        barcode: row.barcode,
+        unitId: row.unitId,
+        minStock: row.minStock,
+        maxStock: row.maxStock,
+        shelfLifeDays: row.shelfLifeDays,
+        costPrice: row.costPrice,
+        defaultSupplierId: row.defaultSupplierId,
+        purchaseGLAccount: row.purchaseGLAccount,
+        defaultTaxRateId: row.defaultTaxRateId,
+        storageLocation: row.storageLocation,
+        openingStock: row.openingStock,
+      } as CreateItemDto);
+      items.push(item);
+    }
+
+    return { createdCount: items.length, items };
   }
 
   async findById(request: RequestWithAccess, id: string): Promise<Item> {

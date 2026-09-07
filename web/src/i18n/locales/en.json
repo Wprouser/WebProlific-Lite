@@ -321,6 +321,24 @@
       "errorMinMax": "Min stock must be less than max stock",
       "saveError": "Couldn't save. Please try again."
     },
+    "bulkImport": {
+      "addAction": "Bulk import",
+      "title": "Bulk Import Items",
+      "backToItems": "Back to Items",
+      "fileLabel": "Items file (CSV or Excel)",
+      "formatTitle": "What the file needs",
+      "formatColumns": "Columns for Name, Category, SKU, Unit, Min Stock, Max Stock, and Cost Price, at minimum.",
+      "formatOptional": "Barcode, Shelf Life Days, Purchase GL Account, Default Tax Rate, Default Supplier, Storage Location, and Opening Stock (Quantity / Rate) are all optional.",
+      "formatNames": "Category, Unit, Default Supplier, and Default Tax Rate are matched by their exact existing name — set those up first if a row needs one that doesn't exist yet.",
+      "continue": "Upload and import",
+      "uploading": "Importing…",
+      "uploadError": "Couldn't import this file",
+      "successTitle": "{{count}} item(s) imported",
+      "errorsTitle": "Nothing was imported — every row is validated before anything is created. Fix these rows and try again:",
+      "errorRow": "Row {{row}}: {{error}}",
+      "tryAgain": "Choose another file",
+      "viewItems": "View items"
+    },
     "categoryManager": {
       "title": "Manage categories",
       "description": "Categories help organize items in the list and reports.",

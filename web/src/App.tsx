@@ -11,6 +11,7 @@ import { ForgotPassword } from '@/routes/ForgotPassword';
 import { ResetPassword } from '@/routes/ResetPassword';
 import { Items } from '@/routes/Items';
 import { ItemDetail } from '@/routes/ItemDetail';
+import { BulkImportItems } from '@/routes/BulkImportItems';
 import { StockTransactions } from '@/routes/StockTransactions';
 import { TaxRates } from '@/routes/TaxRates';
 import { CurrencySettings } from '@/routes/CurrencySettings';
@@ -74,6 +75,7 @@ export function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/organization" element={<Organization />} />
             <Route path="/items" element={<Items />} />
+            <Route path="/items/bulk-import" element={<BulkImportItems />} />
             <Route path="/items/:id" element={<ItemDetail />} />
             <Route path="/stock" element={<StockTransactions />} />
             <Route path="/tax-rates" element={<TaxRates />} />

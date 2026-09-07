@@ -1,6 +1,10 @@
 import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ItemsService } from './items.service';
 import { ItemRepository } from '../repositories/item.repository';
+import { CategoryRepository } from '../repositories/category.repository';
+import { UnitOfMeasureRepository } from '../repositories/unit-of-measure.repository';
+import { SupplierRepository } from '../../suppliers/repositories/supplier.repository';
+import { TaxRateRepository } from '../../tax-rates/repositories/tax-rate.repository';
 import { Item } from '../domain/item.entity';
 import { RequestWithAccess } from '../../tenancy/types/request-with-access';
 
@@ -60,8 +64,28 @@ describe('ItemsService', () => {
       findByBarcode: jest.fn().mockResolvedValue(null),
       findScoped: jest.fn().mockResolvedValue([item]),
     };
-    const service = new ItemsService(itemRepository as ItemRepository);
-    return { service, itemRepository };
+    const categoryRepository: Partial<CategoryRepository> = {
+      findScoped: jest.fn().mockResolvedValue([{ id: 'c1', name: 'Dry Goods', outletId: 'o1', isActive: true }]),
+    };
+    const unitRepository: Partial<UnitOfMeasureRepository> = {
+      findScoped: jest.fn().mockResolvedValue([
+        { id: 'u1', name: 'Kilogram', abbreviation: 'kg', outletId: 'o1', isActive: true, baseUnitId: null, conversionFactor: null },
+      ]),
+    };
+    const supplierRepository: Partial<SupplierRepository> = {
+      findScoped: jest.fn().mockResolvedValue([]),
+    };
+    const taxRateRepository: Partial<TaxRateRepository> = {
+      findScoped: jest.fn().mockResolvedValue([]),
+    };
+    const service = new ItemsService(
+      itemRepository as ItemRepository,
+      categoryRepository as CategoryRepository,
+      unitRepository as UnitOfMeasureRepository,
+      supplierRepository as SupplierRepository,
+      taxRateRepository as TaxRateRepository,
+    );
+    return { service, itemRepository, categoryRepository, unitRepository, supplierRepository, taxRateRepository };
   }
 
   const createDto = {
@@ -209,6 +233,73 @@ describe('ItemsService', () => {
       await expect(service.clone(fixtureRequest('STORE_STAFF'), 'i1', 'RICE-BAS-002')).rejects.toThrow(
         ForbiddenException,
       );
+    });
+  });
+
+  describe('bulkImport', () => {
+    const HEADER = 'Name,Category,SKU,Unit,Min Stock,Max Stock,Cost Price';
+    function csvFile(rows: string[]) {
+      return { buffer: Buffer.from([HEADER, ...rows].join('\n'), 'utf8'), originalName: 'items.csv' };
+    }
+
+    it('AC: every valid row is created, resolving category/unit names to ids', async () => {
+      const { service, itemRepository } = buildService();
+      const result = await service.bulkImport(
+        fixtureRequest(),
+        'o1',
+        csvFile(['Basmati Rice,Dry Goods,RICE-002,Kilogram,10,100,85.50']),
+      );
+      expect(result.createdCount).toBe(1);
+      expect(itemRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ categoryId: 'c1', unitId: 'u1', sku: 'RICE-002' }),
+      );
+    });
+
+    it('AC: validates every row before committing any — a single bad row rejects the whole batch with a per-row error report', async () => {
+      const { service, itemRepository } = buildService();
+      await expect(
+        service.bulkImport(
+          fixtureRequest(),
+          'o1',
+          csvFile([
+            'Basmati Rice,Dry Goods,RICE-002,Kilogram,10,100,85.50',
+            'Bad Item,Nonexistent Category,RICE-003,Kilogram,10,100,85.50',
+          ]),
+        ),
+      ).rejects.toMatchObject({
+        response: { errors: [{ row: 2, error: expect.stringContaining('Nonexistent Category') }] },
+      });
+      expect(itemRepository.create).not.toHaveBeenCalled();
+    });
+
+    it('AC: rejects the whole batch when a row\'s SKU already exists, without creating any row', async () => {
+      const { service, itemRepository } = buildService();
+      (itemRepository.findBySku as jest.Mock).mockResolvedValue(fixtureItem());
+      await expect(
+        service.bulkImport(fixtureRequest(), 'o1', csvFile(['Basmati Rice,Dry Goods,RICE-002,Kilogram,10,100,85.50'])),
+      ).rejects.toMatchObject({ response: { errors: [{ row: 1, error: expect.stringContaining('already exists') }] } });
+      expect(itemRepository.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a file with no usable header row with a clear error', async () => {
+      const { service } = buildService();
+      await expect(
+        service.bulkImport(fixtureRequest(), 'o1', {
+          buffer: Buffer.from('junk,data\n1,2', 'utf8'),
+          originalName: 'items.csv',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects bulk import for a role not permitted to mutate items', async () => {
+      const { service } = buildService();
+      await expect(
+        service.bulkImport(
+          fixtureRequest('STORE_STAFF'),
+          'o1',
+          csvFile(['Basmati Rice,Dry Goods,RICE-002,Kilogram,10,100,85.50']),
+        ),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });

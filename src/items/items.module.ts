@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { RbacModule } from '../rbac/rbac.module';
 import { StorageModule } from '../storage/storage.module';
+import { SuppliersModule } from '../suppliers/suppliers.module';
+import { TaxRatesModule } from '../tax-rates/tax-rates.module';
 import { CategoriesController } from './controllers/categories.controller';
 import { UnitsController } from './controllers/units.controller';
 import { ItemsController } from './controllers/items.controller';
@@ -23,7 +25,11 @@ import { PrismaItemImageRepository } from './repositories/prisma/prisma-item-ima
 import { PrismaUnitOfMeasureRepository } from './repositories/prisma/prisma-unit-of-measure.repository';
 
 @Module({
-  imports: [RbacModule, StorageModule],
+  // SuppliersModule/TaxRatesModule: FR-01's bulk import resolves a row's
+  // optional defaultSupplier/defaultTaxRate by name against the outlet's
+  // existing rows. One-directional — neither module imports ItemsModule
+  // back, so there's no cycle (same precedent as GrnModule).
+  imports: [RbacModule, StorageModule, SuppliersModule, TaxRatesModule],
   // CategoriesController/UnitsController registered before ItemsController
   // — see CategoriesController's doc comment (GET/POST items/categories and
   // items/units must resolve before ItemsController's GET items/:id).

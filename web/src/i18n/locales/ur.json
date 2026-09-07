@@ -321,6 +321,24 @@
       "errorMinMax": "کم از کم اسٹاک زیادہ سے زیادہ اسٹاک سے کم ہونا چاہیے",
       "saveError": "محفوظ نہیں ہو سکا۔ براہ کرم دوبارہ کوشش کریں۔"
     },
+    "bulkImport": {
+      "addAction": "بلک امپورٹ",
+      "title": "آئٹمز بلک امپورٹ کریں",
+      "backToItems": "آئٹمز پر واپس جائیں",
+      "fileLabel": "آئٹمز فائل (CSV یا Excel)",
+      "formatTitle": "فائل میں کیا ہونا چاہیے",
+      "formatColumns": "کم از کم Name, Category, SKU, Unit, Min Stock, Max Stock، اور Cost Price کے لیے کالمز۔",
+      "formatOptional": "Barcode, Shelf Life Days, Purchase GL Account, Default Tax Rate, Default Supplier, Storage Location، اور Opening Stock (Quantity / Rate) سب اختیاری ہیں۔",
+      "formatNames": "Category, Unit, Default Supplier، اور Default Tax Rate کا موازنہ ان کے موجودہ نام سے بالکل ویسا ہی کیا جاتا ہے — اگر کسی قطار کو ایسا نام چاہیے جو ابھی موجود نہیں، تو پہلے وہ بنا لیں۔",
+      "continue": "اپ لوڈ کریں اور امپورٹ کریں",
+      "uploading": "امپورٹ ہو رہا ہے…",
+      "uploadError": "یہ فائل امپورٹ نہیں ہو سکی",
+      "successTitle": "{{count}} آئٹم امپورٹ ہو گئے",
+      "errorsTitle": "کچھ بھی امپورٹ نہیں ہوا — کچھ بھی بنانے سے پہلے ہر قطار کی جانچ کی جاتی ہے۔ یہ قطاریں درست کریں اور دوبارہ کوشش کریں:",
+      "errorRow": "قطار {{row}}: {{error}}",
+      "tryAgain": "دوسری فائل منتخب کریں",
+      "viewItems": "آئٹمز دیکھیں"
+    },
     "categoryManager": {
       "title": "زمرہ جات کا نظم کریں",
       "description": "زمرہ جات فہرست اور رپورٹس میں اشیاء کو منظم کرنے میں مدد کرتے ہیں۔",

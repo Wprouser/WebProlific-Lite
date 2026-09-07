@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Package, Percent, Plus, Search, Settings2 } from 'lucide-react';
+import { Package, Percent, Plus, Search, Settings2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
@@ -177,6 +177,10 @@ export function Items() {
           <Button variant="outline" onClick={() => navigate('/tax-rates')}>
             <Percent className="h-4 w-4" />
             {t('items.manageTaxRates')}
+          </Button>
+          <Button variant="outline" onClick={() => navigate('/items/bulk-import')} disabled={!outletId}>
+            <Upload className="h-4 w-4" />
+            {t('items.bulkImport.addAction')}
           </Button>
           <Button onClick={openCreate} disabled={!outletId}>
             <Plus className="h-4 w-4" />

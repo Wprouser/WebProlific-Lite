@@ -112,6 +112,16 @@ function buildQuery(filters: ItemFilters): string {
   return qs ? `?${qs}` : '';
 }
 
+export interface BulkImportRowError {
+  row: number;
+  error: string;
+}
+
+export interface BulkImportItemsResult {
+  createdCount: number;
+  items: ApiItem[];
+}
+
 export const itemsApi = {
   list: (filters: ItemFilters) => apiClient.get<ApiItem[]>(`/items${buildQuery(filters)}`),
   get: (id: string) => apiClient.get<ApiItem>(`/items/${id}`),
@@ -120,6 +130,16 @@ export const itemsApi = {
   deactivate: (id: string) => apiClient.delete<ApiItem>(`/items/${id}`),
   reactivate: (id: string) => apiClient.patch<ApiItem>(`/items/${id}`, { isActive: true }),
   clone: (id: string, sku: string) => apiClient.post<ApiItem>(`/items/${id}/clone`, { sku }),
+  /** Spec: "validate every row before committing any; return a per-row
+   * error report ... rather than partial success." A validation failure
+   * rejects with an ApiError whose `details` carries `{message, errors}` —
+   * see ApiError.details. */
+  bulkImport: (outletId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('outletId', outletId);
+    formData.append('file', file);
+    return apiClient.postForm<BulkImportItemsResult>('/items/bulk-import', formData);
+  },
 };
 
 function buildCategoryQuery(filters: CategoryFilters): string {

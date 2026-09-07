@@ -9,10 +9,16 @@ const API_BASE = '/api/v1';
 
 export class ApiError extends Error {
   status: number;
+  // The full parsed JSON response body, when there was one — most callers
+  // only need `message`, but a structured error body (e.g. FR-01 bulk
+  // import's `{message, errors: [{row, error}]}` per-row report) needs
+  // this to recover anything beyond the top-level message string.
+  details?: unknown;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, details?: unknown) {
     super(message);
     this.status = status;
+    this.details = details;
   }
 }
 
@@ -110,6 +116,7 @@ async function toApiError(response: Response): Promise<ApiError> {
   return new ApiError(
     response.status,
     body?.message ?? `Request failed (${response.status})`,
+    body ?? undefined,
   );
 }
 

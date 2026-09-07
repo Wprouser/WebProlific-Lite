@@ -156,7 +156,10 @@ export function splitCsvLine(line: string): string[] {
   return cells.map((cell) => cell.trim());
 }
 
-function cellToText(value: unknown): string {
+/** Exported for reuse by other file-import parsers (e.g. FR-01's bulk item
+ * import) that need the same exceljs cell-to-text coercion — not sales-
+ * specific despite living here first. */
+export function cellToText(value: unknown): string {
   if (value === null || value === undefined) return '';
   if (value instanceof Date) return value.toISOString();
   if (typeof value === 'object') {

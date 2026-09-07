@@ -128,6 +128,21 @@ describe('api-client silent refresh', () => {
     expect(assign).not.toHaveBeenCalled();
   });
 
+  it('AC: ApiError carries the full parsed body, so a structured error (e.g. a per-row bulk-import report) survives beyond the message string', async () => {
+    seedSession();
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(400, { message: 'Bulk import failed validation', errors: [{ row: 2, error: 'duplicate SKU' }] }),
+    );
+
+    const error = await apiClient.post('/items/bulk-import', {}).catch((e) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).details).toEqual({
+      message: 'Bulk import failed validation',
+      errors: [{ row: 2, error: 'duplicate SKU' }],
+    });
+  });
+
   it('AC: a signed-in user submitting a bad 2FA code is not logged out', async () => {
     // Regression guard: 2fa/verify legitimately 401s on a wrong code. Without
     // the no-refresh list, a stale session in localStorage would turn that

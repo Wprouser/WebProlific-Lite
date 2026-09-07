@@ -1,12 +1,30 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  MaxFileSizeValidator,
+  Param,
+  ParseFilePipe,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ItemsService } from '../services/items.service';
 import { CreateItemDto } from '../dto/create-item.dto';
 import { UpdateItemDto } from '../dto/update-item.dto';
 import { QueryItemsDto } from '../dto/query-items.dto';
 import { CloneItemDto } from '../dto/clone-item.dto';
+import { BulkImportItemsDto } from '../dto/bulk-import-items.dto';
 import { RequestWithAccess } from '../../tenancy/types/request-with-access';
 import { AuditLogService } from '../../rbac/services/audit-log.service';
 import { RestrictFields } from '../../rbac/decorators/restrict-fields.decorator';
+
+const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
 
 /**
  * No `@Roles()`/`@ResourceScope()` on these routes — FR-01's endpoints are
@@ -36,6 +54,42 @@ export class ItemsController {
       after: item,
     });
     return item;
+  }
+
+  /** Spec: "validate every row before committing any; return a per-row
+   * error report ... rather than partial success." A validation failure
+   * throws BadRequestException with the full `{row, error}[]` report and
+   * creates nothing — see ItemsService.bulkImport. */
+  @Post('bulk-import')
+  @UseInterceptors(FileInterceptor('file'))
+  async bulkImport(
+    @Body() dto: BulkImportItemsDto,
+    @Req() request: RequestWithAccess,
+    @UploadedFile(
+      new ParseFilePipe({
+        // Size only, no FileTypeValidator — same reasoning as FR-06's sales
+        // import: a CSV/Excel export arrives under all sorts of MIME types
+        // depending on browser/OS, and the parser itself is the real check.
+        validators: [new MaxFileSizeValidator({ maxSize: MAX_IMPORT_BYTES })],
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
+    const result = await this.itemsService.bulkImport(request, dto.outletId, {
+      buffer: file.buffer,
+      originalName: file.originalname,
+    });
+    for (const item of result.items) {
+      await this.auditLogService.record({
+        userId: request.user!.id,
+        action: 'CREATE_ITEM',
+        entityType: 'Item',
+        entityId: item.id,
+        outletId: item.outletId,
+        after: item,
+      });
+    }
+    return result;
   }
 
   @Get()
