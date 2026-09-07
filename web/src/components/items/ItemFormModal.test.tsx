@@ -18,7 +18,10 @@ vi.mock('@/lib/items-api', async () => {
   };
 });
 
-const categories: ApiCategory[] = [{ id: 'c1', name: 'Dry Goods', outletId: 'o1' }];
+const categories: ApiCategory[] = [
+  { id: 'c1', name: 'Dry Goods', outletId: 'o1', isActive: true, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+  { id: 'c-old', name: 'Discontinued Line', outletId: 'o1', isActive: false, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+];
 const units: ApiUnitOfMeasure[] = [{ id: 'u1', outletId: 'o1', name: 'Kilogram', abbreviation: 'kg', baseUnitId: null, conversionFactor: null, isActive: true }];
 const taxRates: ApiTaxRate[] = [
   { id: 'tax-vat', outletId: 'o1', name: 'VAT 15%', ratePercent: '15.00', isCompound: false, isDefault: false, isActive: true, countryCode: 'SA', components: [] },
@@ -97,6 +100,22 @@ describe('ItemFormModal', () => {
         />,
       );
       expect(screen.queryByRole('option', { name: /Old GST/ })).not.toBeInTheDocument();
+    });
+
+    it('AC: never offers an inactive category for a brand-new item', () => {
+      render(
+        <ItemFormModal
+          open
+          onOpenChange={vi.fn()}
+          item={null}
+          categories={categories}
+          units={units}
+          taxRates={taxRates}
+          outletId="o1"
+          onSaved={vi.fn()}
+        />,
+      );
+      expect(screen.queryByRole('option', { name: /Discontinued Line/ })).not.toBeInTheDocument();
     });
 
     it('AC: staged images are uploaded to the new item right after creation succeeds', async () => {
@@ -263,6 +282,42 @@ describe('ItemFormModal', () => {
       );
 
       expect(screen.queryByRole('option', { name: /Old GST/ })).not.toBeInTheDocument();
+    });
+
+    it('AC: an item already assigned to a now-deactivated category still shows it, labeled inactive', () => {
+      render(
+        <ItemFormModal
+          open
+          onOpenChange={vi.fn()}
+          item={{ ...existingItem, categoryId: 'c-old' }}
+          categories={categories}
+          units={units}
+          taxRates={taxRates}
+          outletId="o1"
+          onSaved={vi.fn()}
+        />,
+      );
+
+      const select = screen.getByRole('combobox', { name: /Category/i });
+      expect(select).toHaveValue('c-old');
+      expect(screen.getByRole('option', { name: 'Discontinued Line (Inactive)' })).toBeInTheDocument();
+    });
+
+    it('AC: does not offer an inactive category that is not this item\'s current selection', () => {
+      render(
+        <ItemFormModal
+          open
+          onOpenChange={vi.fn()}
+          item={{ ...existingItem, categoryId: 'c1' }}
+          categories={categories}
+          units={units}
+          taxRates={taxRates}
+          outletId="o1"
+          onSaved={vi.fn()}
+        />,
+      );
+
+      expect(screen.queryByRole('option', { name: /Discontinued Line/ })).not.toBeInTheDocument();
     });
 
     it('AC: updating an item persists a changed tax rate selection', async () => {

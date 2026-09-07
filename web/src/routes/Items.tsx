@@ -72,7 +72,7 @@ export function Items() {
   }, [loadItems]);
 
   useEffect(() => {
-    categoriesApi.list(outletId).then(setCategories).catch(() => setCategories([]));
+    categoriesApi.list({ outletId }).then(setCategories).catch(() => setCategories([]));
     unitsApi.list({ outletId }).then(setUnits).catch(() => setUnits([]));
     taxRatesApi.list({ outletId }).then(setTaxRates).catch(() => setTaxRates([]));
   }, [outletId]);
@@ -91,6 +91,10 @@ export function Items() {
 
   function handleCreateCategory(category: ApiCategory) {
     setCategories((prev) => [...prev, category]);
+  }
+
+  function handleUpdateCategory(category: ApiCategory) {
+    setCategories((prev) => prev.map((c) => (c.id === category.id ? category : c)));
   }
 
   function handleCreateUnit(unit: ApiUnitOfMeasure) {
@@ -264,6 +268,7 @@ export function Items() {
         categories={categories}
         outletId={outletId}
         onCreate={handleCreateCategory}
+        onUpdate={handleUpdateCategory}
       />
       <UnitManagerModal
         open={unitManagerOpen}

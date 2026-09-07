@@ -96,7 +96,7 @@ export function ItemDetail() {
     // elsewhere. Waits for the item to load, since that's the only source
     // of its outletId.
     if (!item) return;
-    categoriesApi.list(item.outletId).then(setCategories).catch(() => setCategories([]));
+    categoriesApi.list({ outletId: item.outletId }).then(setCategories).catch(() => setCategories([]));
     unitsApi.list({ outletId: item.outletId }).then(setUnits).catch(() => setUnits([]));
     taxRatesApi.list({ outletId: item.outletId }).then(setTaxRates).catch(() => setTaxRates([]));
     // Deliberately keyed on outletId alone, not the whole item — it never
@@ -421,6 +421,7 @@ export function ItemDetail() {
         categories={categories}
         outletId={item.outletId}
         onCreate={(category) => setCategories((prev) => [...prev, category])}
+        onUpdate={(category) => setCategories((prev) => prev.map((c) => (c.id === category.id ? category : c)))}
       />
     </div>
   );

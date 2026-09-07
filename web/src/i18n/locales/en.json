@@ -326,7 +326,8 @@
       "description": "Categories help organize items in the list and reports.",
       "namePlaceholder": "New category name",
       "add": "Add",
-      "empty": "No categories yet"
+      "empty": "No categories yet",
+      "saveError": "Couldn't save. Please try again."
     },
     "unitManager": {
       "title": "Manage units",

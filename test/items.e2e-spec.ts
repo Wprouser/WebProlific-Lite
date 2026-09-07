@@ -350,6 +350,64 @@ describe('Item Master (FR-01) e2e', () => {
       .expect(409);
   });
 
+  it('PATCH edits a category\'s name', async () => {
+    const { outlet } = await chainWithOutlet();
+    const { token } = await actor('catowner1@example.com', 'OUTLET', outlet.id, 'OUTLET_MANAGER');
+    const cat = await category(outlet.id, 'Dairy');
+
+    const updated = await api()
+      .patch(`/api/v1/items/categories/${cat.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Dairy & Eggs' })
+      .expect(200);
+    expect(updated.body.name).toBe('Dairy & Eggs');
+  });
+
+  it('rejects a category edit for STORE_STAFF (view-only)', async () => {
+    const { outlet } = await chainWithOutlet();
+    const { token } = await actor('catowner2@example.com', 'OUTLET', outlet.id, 'STORE_STAFF');
+    const cat = await category(outlet.id);
+
+    await api()
+      .patch(`/api/v1/items/categories/${cat.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'x' })
+      .expect(403);
+  });
+
+  it('AC: deactivating a category does not affect any Item already using it — it only stops appearing as an option for new/edited items', async () => {
+    const { outlet } = await chainWithOutlet();
+    const { token } = await actor('catowner3@example.com', 'OUTLET', outlet.id, 'OUTLET_MANAGER');
+    const cat = await category(outlet.id, 'Seafood');
+    const unit = await unitOfMeasure(outlet.id);
+
+    const item = await api()
+      .post('/api/v1/items')
+      .set('Authorization', `Bearer ${token}`)
+      .send(itemPayload({ outletId: outlet.id, categoryId: cat.id, unitId: unit.id }))
+      .expect(201);
+
+    const deactivated = await api()
+      .delete(`/api/v1/items/categories/${cat.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(deactivated.body.isActive).toBe(false);
+
+    // The existing item keeps its reference untouched.
+    const reloadedItem = await api()
+      .get(`/api/v1/items/${item.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(reloadedItem.body.categoryId).toBe(cat.id);
+
+    // But it no longer appears in the active-only list new/edited items pick from.
+    const activeCategories = await api()
+      .get(`/api/v1/items/categories?outletId=${outlet.id}&isActive=true`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(activeCategories.body.some((c: { id: string }) => c.id === cat.id)).toBe(false);
+  });
+
   it('GET /items/categories resolves correctly and is not swallowed by GET /items/:id', async () => {
     const { outlet } = await chainWithOutlet();
     const { token } = await actor('owner8@example.com', 'OUTLET', outlet.id, 'OUTLET_MANAGER');

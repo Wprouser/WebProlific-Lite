@@ -376,12 +376,16 @@ model Item {
 // Follow-up task, unrelated to the UnitOfMeasure work below; needs its own
 // focused pass once flagged back to the user.
 model Category {
-  id       String @id @default(uuid())
-  name     String
-  outletId String
-  items    Item[]
+  id        String   @id @default(uuid())
+  name      String
+  outletId  String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  items     Item[]
 
   @@unique([name, outletId])
+  @@index([outletId, isActive])
 }
 
 // FR-01: per-outlet master table replacing the old hardcoded Unit enum —

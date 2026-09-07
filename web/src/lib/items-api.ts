@@ -4,6 +4,19 @@ export interface ApiCategory {
   id: string;
   name: string;
   outletId: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateCategoryInput {
+  name?: string;
+  isActive?: boolean;
+}
+
+export interface CategoryFilters {
+  outletId?: string;
+  isActive?: boolean;
 }
 
 export interface ApiUnitOfMeasure {
@@ -109,13 +122,23 @@ export const itemsApi = {
   clone: (id: string, sku: string) => apiClient.post<ApiItem>(`/items/${id}/clone`, { sku }),
 };
 
+function buildCategoryQuery(filters: CategoryFilters): string {
+  const params = new URLSearchParams();
+  if (filters.outletId) params.set('outletId', filters.outletId);
+  if (filters.isActive !== undefined) params.set('isActive', String(filters.isActive));
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
 export const categoriesApi = {
   // outletId was always supported server-side (QueryCategoriesDto) — never
   // exposed here until Category/UnitOfMeasure needed to follow the same
   // Context Switcher scoping as Item itself (both are outlet-scoped 1:1
   // master data, not shared across outlets).
-  list: (outletId?: string) => apiClient.get<ApiCategory[]>(`/items/categories${outletId ? `?outletId=${outletId}` : ''}`),
+  list: (filters: CategoryFilters = {}) => apiClient.get<ApiCategory[]>(`/items/categories${buildCategoryQuery(filters)}`),
   create: (name: string, outletId: string) => apiClient.post<ApiCategory>('/items/categories', { name, outletId }),
+  update: (id: string, input: UpdateCategoryInput) => apiClient.patch<ApiCategory>(`/items/categories/${id}`, input),
+  deactivate: (id: string) => apiClient.delete<ApiCategory>(`/items/categories/${id}`),
 };
 
 export interface UnitFilters {

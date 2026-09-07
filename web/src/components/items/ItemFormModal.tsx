@@ -120,6 +120,10 @@ export function ItemFormModal({
   // already using it").
   const availableUnits = units.filter((unit) => unit.isActive || unit.id === item?.unitId);
 
+  // Same rule again, now that Category has the same isActive/deactivation
+  // support as Unit of Measure.
+  const availableCategories = categories.filter((category) => category.isActive || category.id === item?.categoryId);
+
   useEffect(() => {
     if (!open) return;
     setError(null);
@@ -262,9 +266,9 @@ export function ItemFormModal({
             <option value="" disabled>
               {t('items.form.categoryPlaceholder')}
             </option>
-            {categories.map((c) => (
+            {availableCategories.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name}
+                {c.isActive ? c.name : t('items.form.inactiveOption', { name: c.name })}
               </option>
             ))}
           </CompactSelect>
