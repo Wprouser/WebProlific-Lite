@@ -306,6 +306,12 @@ export class AuthService {
       twoFactorMethod: twoFactor?.method ?? null,
       effectiveRole: access.effectiveRole,
       effectiveOutletIds: access.effectiveOutletIds,
+      // FR-00: needed by the Organization screen and header Context
+      // Switcher to know which chain(s)/propert(ies) to fetch — e.g. a
+      // CHAIN_OWNER who hasn't added a first property yet still needs to
+      // reach their own chain, which effectiveOutletIds alone can't tell.
+      effectivePropertyIds: access.effectivePropertyIds,
+      effectiveChainIds: access.effectiveChainIds,
     };
   }
 

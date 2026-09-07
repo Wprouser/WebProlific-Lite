@@ -20,7 +20,7 @@ function seedSession() {
       email: 'owner@example.com',
       preferredLanguage: 'en',
       effectiveRole: 'CHAIN_OWNER',
-      effectiveOutletIds: ['o1'],
+      effectiveOutletIds: ['o1'], effectivePropertyIds: [], effectiveChainIds: [],
     },
   });
 }

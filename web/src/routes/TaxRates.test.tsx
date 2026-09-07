@@ -65,7 +65,7 @@ describe('TaxRates screen', () => {
     setSession({
       accessToken: 'token',
       refreshToken: 'refresh-token',
-      user: { id: 'u1', email: 'test@example.com', preferredLanguage: 'en', effectiveRole: 'PROPERTY_MANAGER', effectiveOutletIds: ['o1'] },
+      user: { id: 'u1', email: 'test@example.com', preferredLanguage: 'en', effectiveRole: 'PROPERTY_MANAGER', effectiveOutletIds: ['o1'], effectivePropertyIds: [], effectiveChainIds: [] },
     });
   });
 
@@ -176,7 +176,7 @@ describe('TaxRates screen', () => {
       setSession({
         accessToken: 'token',
         refreshToken: 'refresh-token',
-        user: { id: 'u1', email: 'test@example.com', preferredLanguage: 'en', effectiveRole: 'OUTLET_MANAGER', effectiveOutletIds: ['o1'] },
+        user: { id: 'u1', email: 'test@example.com', preferredLanguage: 'en', effectiveRole: 'OUTLET_MANAGER', effectiveOutletIds: ['o1'], effectivePropertyIds: [], effectiveChainIds: [] },
       });
     });
 
@@ -211,7 +211,7 @@ describe('TaxRates screen', () => {
     setSession({
       accessToken: 'token',
       refreshToken: 'refresh-token',
-      user: { id: 'u1', email: 'test@example.com', preferredLanguage: 'en', effectiveRole: 'CHAIN_OWNER', effectiveOutletIds: ['o1'] },
+      user: { id: 'u1', email: 'test@example.com', preferredLanguage: 'en', effectiveRole: 'CHAIN_OWNER', effectiveOutletIds: ['o1'], effectivePropertyIds: [], effectiveChainIds: [] },
     });
     (taxRatesApi.list as ReturnType<typeof vi.fn>).mockResolvedValue([activeRate]);
     renderScreen();

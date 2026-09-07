@@ -71,7 +71,7 @@ describe('TransferDetail screen', () => {
         email: 'test@example.com',
         preferredLanguage: 'en',
         effectiveRole: 'OUTLET_MANAGER',
-        effectiveOutletIds: ['o1', 'o2'],
+        effectiveOutletIds: ['o1', 'o2'], effectivePropertyIds: [], effectiveChainIds: [],
       },
     });
     asMock(transfersApi.get).mockResolvedValue(transfer());

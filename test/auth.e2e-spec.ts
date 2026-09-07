@@ -382,4 +382,41 @@ describe('Auth & 2FA (FR-13) e2e', () => {
     expect(res.body.email).toBe('me-user@example.com');
     expect(res.body.twoFactorEnabled).toBe(false);
   });
+
+  it('AC (FR-00): GET /auth/me surfaces effectivePropertyIds/effectiveChainIds derived from a CHAIN-scoped grant', async () => {
+    const chain = await prisma.chain.create({ data: { name: 'Al Waha Group' } });
+    const property = await prisma.property.create({ data: { chainId: chain.id, name: 'Jeddah Hotel', type: 'HOTEL' } });
+    await prisma.outlet.create({ data: { propertyId: property.id, chainId: chain.id, name: 'Main Kitchen', type: 'KITCHEN' } });
+    const owner = await createUser('chain-owner-me@example.com');
+    await prisma.userAccess.create({
+      data: { userId: owner.id, scopeType: 'CHAIN', scopeId: chain.id, role: 'CHAIN_OWNER' },
+    });
+
+    const loginRes = await login('chain-owner-me@example.com').expect(200);
+    const res = await api()
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${loginRes.body.accessToken}`)
+      .expect(200);
+
+    expect(res.body.effectiveChainIds).toEqual([chain.id]);
+    expect(res.body.effectivePropertyIds).toEqual([property.id]);
+  });
+
+  it('AC (FR-00): a plain CHAIN_OWNER onboarded with no properties yet still gets their chain id, even with an empty outlet/property list', async () => {
+    const chain = await prisma.chain.create({ data: { name: 'Brand New Chain' } });
+    const owner = await createUser('fresh-owner-me@example.com');
+    await prisma.userAccess.create({
+      data: { userId: owner.id, scopeType: 'CHAIN', scopeId: chain.id, role: 'CHAIN_OWNER' },
+    });
+
+    const loginRes = await login('fresh-owner-me@example.com').expect(200);
+    const res = await api()
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${loginRes.body.accessToken}`)
+      .expect(200);
+
+    expect(res.body.effectiveChainIds).toEqual([chain.id]);
+    expect(res.body.effectivePropertyIds).toEqual([]);
+    expect(res.body.effectiveOutletIds).toEqual([]);
+  });
 });

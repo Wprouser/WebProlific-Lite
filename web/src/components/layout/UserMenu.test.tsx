@@ -30,7 +30,7 @@ describe('UserMenu', () => {
         email: 'qa@example.com',
         preferredLanguage: 'en',
         effectiveRole: 'PROPERTY_MANAGER',
-        effectiveOutletIds: ['o1'],
+        effectiveOutletIds: ['o1'], effectivePropertyIds: [], effectiveChainIds: [],
       },
     });
   });

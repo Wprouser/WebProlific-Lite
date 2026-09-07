@@ -77,23 +77,31 @@ export function Login() {
   async function applySuccess(result: LoginSuccessResponse) {
     // Persisted before the profile fetch below, because that fetch is itself
     // an authenticated call and reads the token back out of the store.
+    // effectivePropertyIds/effectiveChainIds are placeholders too (see
+    // auth-store.ts) — the login response itself doesn't carry them.
     setSession({
       accessToken: result.accessToken,
       refreshToken: result.refreshToken,
-      user: { ...result.user, email: '' },
+      user: { ...result.user, email: '', effectivePropertyIds: [], effectiveChainIds: [] },
     });
 
     if (result.trustedDeviceToken) setTrustedDeviceToken(result.trustedDeviceToken);
 
     try {
-      // The login response itself carries no email (see auth-store.ts) —
-      // fetch it once so the header/sidebar user menu can show who's
-      // actually signed in instead of a placeholder.
+      // The login response itself carries no email, effectivePropertyIds,
+      // or effectiveChainIds (see auth-store.ts) — fetch them once so the
+      // user menu can show who's signed in, and FR-00's Organization
+      // screen/Context Switcher know what to fetch.
       const profile = await authApi.me();
       setSession({
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
-        user: { ...result.user, email: profile.email },
+        user: {
+          ...result.user,
+          email: profile.email,
+          effectivePropertyIds: profile.effectivePropertyIds,
+          effectiveChainIds: profile.effectiveChainIds,
+        },
       });
     } catch {
       // Non-fatal — the user menu just shows a blank email if this fails.

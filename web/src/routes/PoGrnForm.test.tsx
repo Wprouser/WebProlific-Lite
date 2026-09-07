@@ -87,7 +87,7 @@ describe('PoGrnForm', () => {
     setSession({
       accessToken: 'token',
       refreshToken: 'refresh-token',
-      user: { id: 'u1', email: 'test@example.com', preferredLanguage: 'en', effectiveRole: 'OUTLET_MANAGER', effectiveOutletIds: ['o1'] },
+      user: { id: 'u1', email: 'test@example.com', preferredLanguage: 'en', effectiveRole: 'OUTLET_MANAGER', effectiveOutletIds: ['o1'], effectivePropertyIds: [], effectiveChainIds: [] },
     });
     (itemsApi.list as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: 'i1', name: 'Basmati Rice', unitId: 'u1', currentStock: '10' }]);
     (unitsApi.list as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: 'u1', outletId: 'o1', name: 'Kilogram', abbreviation: 'kg', baseUnitId: null, conversionFactor: null, isActive: true }]);

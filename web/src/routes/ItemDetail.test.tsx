@@ -66,7 +66,7 @@ describe('ItemDetail', () => {
     setSession({
       accessToken: 'token',
       refreshToken: 'refresh-token',
-      user: { id: 'u1', email: 'test@example.com', preferredLanguage: 'en', effectiveRole: 'OUTLET_MANAGER', effectiveOutletIds: ['o1'] },
+      user: { id: 'u1', email: 'test@example.com', preferredLanguage: 'en', effectiveRole: 'OUTLET_MANAGER', effectiveOutletIds: ['o1'], effectivePropertyIds: [], effectiveChainIds: [] },
     });
     (itemsApi.get as ReturnType<typeof vi.fn>).mockResolvedValue(item);
     (categoriesApi.list as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: 'c1', name: 'Dry Goods', outletId: 'o1' }]);

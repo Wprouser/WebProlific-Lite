@@ -35,7 +35,8 @@
     "soon": "जल्द ही",
     "menuItems": "मेन्यू आइटम",
     "sales": "बिक्री",
-    "transfers": "स्थानांतरण"
+    "transfers": "स्थानांतरण",
+    "organization": "संगठन"
   },
   "dashboard": {
     "title": "अवलोकन",
@@ -149,7 +150,8 @@
   "contextSwitcher": {
     "ariaLabel": "चेन, प्रॉपर्टी और आउटलेट संदर्भ",
     "switchProperty": "प्रॉपर्टी बदलें",
-    "switchOutlet": "आउटलेट बदलें"
+    "switchOutlet": "आउटलेट बदलें",
+    "none": "अभी तक कोई संगठन एक्सेस नहीं"
   },
   "search": {
     "title": "ग्लोबल सर्च",
@@ -1104,6 +1106,65 @@
       "cancelReceive": "रद्द करें",
       "actualReceivedFor": "{{item}} की वास्तविक प्राप्त मात्रा",
       "varianceFlagged": "अंतर"
+    }
+  },
+  "organization": {
+    "title": "संगठन",
+    "subtitle": "आपकी चेन, प्रॉपर्टी और आउटलेट संरचना",
+    "addProperty": "प्रॉपर्टी जोड़ें",
+    "addOutlet": "आउटलेट जोड़ें",
+    "edit": "संपादित करें",
+    "deactivate": "निष्क्रिय करें",
+    "deactivating": "निष्क्रिय किया जा रहा है…",
+    "confirmYes": "हां, निष्क्रिय करें",
+    "confirmNo": "रद्द करें",
+    "confirmDeactivateProperty": "\"{{name}}\" को निष्क्रिय करें? इससे इसके अंतर्गत सभी {{count}} आउटलेट भी निष्क्रिय हो जाएंगे। ऐतिहासिक डेटा सुरक्षित रहेगा।",
+    "confirmDeactivateOutlet": "\"{{name}}\" को निष्क्रिय करें?",
+    "noOutlets": "अभी तक कोई आउटलेट नहीं है।",
+    "changeCurrency": "मुद्रा बदलें",
+    "loadError": "आपकी संगठन संरचना लोड नहीं हो सकी",
+    "empty": {
+      "title": "अभी तक कोई प्रॉपर्टी नहीं",
+      "description": "अपनी संगठन संरचना बनाना शुरू करने के लिए अपनी पहली प्रॉपर्टी जोड़ें।"
+    },
+    "status": {
+      "active": "सक्रिय",
+      "inactive": "निष्क्रिय"
+    },
+    "propertyType": {
+      "HOTEL": "होटल",
+      "STANDALONE_RESTAURANT": "स्टैंडअलोन रेस्तरां",
+      "RESTAURANT_GROUP_SITE": "रेस्तरां समूह साइट"
+    },
+    "outletType": {
+      "RESTAURANT": "रेस्तरां",
+      "BAR": "बार",
+      "KITCHEN": "रसोई",
+      "STORE": "स्टोर",
+      "ROOM_SERVICE": "रूम सर्विस"
+    },
+    "form": {
+      "name": "नाम",
+      "type": "प्रकार",
+      "address": "पता",
+      "timezone": "समय क्षेत्र",
+      "baseCurrency": "आधार मुद्रा",
+      "poApprovalThreshold": "PO अनुमोदन सीमा",
+      "cancel": "रद्द करें",
+      "save": "सहेजें",
+      "saving": "सहेजा जा रहा है…",
+      "permissionError": "आपको यह करने की अनुमति नहीं है।",
+      "saveError": "परिवर्तन सहेजे नहीं जा सके"
+    },
+    "propertyForm": {
+      "editTitle": "प्रॉपर्टी संपादित करें",
+      "createTitle": "प्रॉपर्टी जोड़ें"
+    },
+    "outletForm": {
+      "editTitle": "आउटलेट संपादित करें",
+      "createTitle": "आउटलेट जोड़ें",
+      "baseCurrencyPlaceholder": "एक मुद्रा चुनें",
+      "poApprovalThresholdPlaceholder": "कोई सीमा नहीं"
     }
   }
 }

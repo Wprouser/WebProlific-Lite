@@ -196,6 +196,44 @@ describe('Tenancy (FR-00) e2e', () => {
       expect(res.body[0].name).toBeDefined();
     });
 
+    it('AC: an OUTLET-scoped grant (e.g. OUTLET_MANAGER) still gets its property and chain name — no other endpoint can resolve them for this role', async () => {
+      const chain = await prisma.chain.create({ data: { name: 'Al Waha Hospitality Group' } });
+      const property = await prisma.property.create({
+        data: { chainId: chain.id, name: 'Jeddah Hotel', type: 'HOTEL' },
+      });
+      const outlet = await prisma.outlet.create({
+        data: { propertyId: property.id, chainId: chain.id, name: 'Main Kitchen', type: 'KITCHEN' },
+      });
+      const { userId, token } = await createAuthedUser('om-names@example.com');
+      await prisma.userAccess.create({
+        data: { userId, scopeType: 'OUTLET', scopeId: outlet.id, role: 'OUTLET_MANAGER' },
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/outlets')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(res.body).toEqual([
+        expect.objectContaining({
+          id: outlet.id,
+          propertyName: 'Jeddah Hotel',
+          chainName: 'Al Waha Hospitality Group',
+        }),
+      ]);
+
+      // Confirming the gap this closes: this same OUTLET_MANAGER cannot
+      // read the property or chain directly.
+      await request(app.getHttpServer())
+        .get(`/api/v1/properties/${property.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+      await request(app.getHttpServer())
+        .get(`/api/v1/chains/${chain.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+    });
+
     it('does not include an outlet the caller has no grant reaching', async () => {
       const chain = await prisma.chain.create({ data: { name: 'Al Waha Group' } });
       const property = await prisma.property.create({

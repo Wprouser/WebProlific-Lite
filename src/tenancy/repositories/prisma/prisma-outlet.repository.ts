@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Outlet as PrismaOutlet } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { Outlet } from '../../domain/outlet.entity';
+import { Outlet, OutletWithHierarchyNames } from '../../domain/outlet.entity';
 import {
   CreateOutletInput,
   OutletRepository,
@@ -74,5 +74,19 @@ export class PrismaOutletRepository implements OutletRepository {
     if (ids.length === 0) return [];
     const outlets = await this.prisma.outlet.findMany({ where: { id: { in: ids } }, orderBy: { name: 'asc' } });
     return outlets.map(toDomain);
+  }
+
+  async findByIdsWithHierarchyNames(ids: string[]): Promise<OutletWithHierarchyNames[]> {
+    if (ids.length === 0) return [];
+    const outlets = await this.prisma.outlet.findMany({
+      where: { id: { in: ids } },
+      orderBy: { name: 'asc' },
+      include: { property: { select: { name: true, chain: { select: { name: true } } } } },
+    });
+    return outlets.map(({ property, ...outlet }) => ({
+      ...toDomain(outlet),
+      propertyName: property.name,
+      chainName: property.chain.name,
+    }));
   }
 }

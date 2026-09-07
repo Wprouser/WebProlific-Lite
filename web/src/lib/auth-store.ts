@@ -11,6 +11,12 @@ export interface SessionUser {
   preferredLanguage: string;
   effectiveRole: string | undefined;
   effectiveOutletIds: string[];
+  // Also filled in from the /auth/me follow-up (not part of /auth/login) —
+  // FR-00's Organization screen and header Context Switcher need these to
+  // know which chain(s)/propert(ies) to fetch. Empty arrays until that
+  // follow-up completes.
+  effectivePropertyIds: string[];
+  effectiveChainIds: string[];
 }
 
 export interface Session {

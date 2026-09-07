@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   ArrowLeftRight,
   BarChart3,
+  Building2,
   ChefHat,
   ClipboardList,
   Coins,
@@ -17,6 +18,7 @@ import {
   Users,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { getSession } from '@/lib/auth-store';
 
 interface NavItem {
   /** Stable key + fallback text; display text comes from `nav.<labelKey>`. */
@@ -25,10 +27,22 @@ interface NavItem {
   /** Undefined = not built yet (FR-01 etc.) — rendered disabled rather than
    * linking somewhere broken. */
   to?: string;
+  /** Undefined = visible to every role (the default for nearly every item
+   * so far). FR-00's Organization screen is the first nav entry that
+   * genuinely shouldn't appear at all for roles with no reason to see
+   * chain/property structure, rather than just gating the mutating actions
+   * within the screen itself (the pattern Taxes/Currency use). */
+  roles?: string[];
 }
 
 export const navItems: NavItem[] = [
   { labelKey: 'dashboard', icon: LayoutDashboard, to: '/' },
+  // FR-00's Organization screen: manages the Chain → Property → Outlet
+  // hierarchy itself, so only the roles who can act on that structure
+  // (create/edit properties and outlets) have any reason to see it — the
+  // first nav entry hidden outright rather than just gating its mutating
+  // actions internally (the pattern Taxes/Currency use).
+  { labelKey: 'organization', icon: Building2, to: '/organization', roles: ['CHAIN_OWNER', 'PROPERTY_MANAGER'] },
   { labelKey: 'items', icon: Package, to: '/items' },
   { labelKey: 'stock', icon: ClipboardList, to: '/stock' },
   // FR-04's Tax Configuration: outlet-level shared reference data used by
@@ -69,10 +83,12 @@ export const navItems: NavItem[] = [
 
 export function NavList({ onNavigate }: { onNavigate?: () => void }) {
   const { t } = useTranslation();
+  const role = getSession()?.user.effectiveRole;
+  const visibleItems = navItems.filter((item) => !item.roles || (role && item.roles.includes(role)));
 
   return (
     <nav className="flex flex-col gap-0.5">
-      {navItems.map((item) => {
+      {visibleItems.map((item) => {
         const Icon = item.icon;
         const label = t(`nav.${item.labelKey}`);
         if (!item.to) {

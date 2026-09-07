@@ -35,6 +35,7 @@ function outlet(overrides: Partial<ApiOutlet> = {}): ApiOutlet {
     name: 'Main Kitchen',
     type: 'KITCHEN',
     baseCurrency: 'SAR',
+    poApprovalThreshold: null,
     isActive: true,
     ...overrides,
   };
@@ -94,7 +95,7 @@ describe('NewTransfer screen', () => {
         email: 'test@example.com',
         preferredLanguage: 'en',
         effectiveRole: 'OUTLET_MANAGER',
-        effectiveOutletIds: ['o1', 'o2'],
+        effectiveOutletIds: ['o1', 'o2'], effectivePropertyIds: [], effectiveChainIds: [],
       },
     });
     asMock(outletsApi.listAccessible).mockResolvedValue([

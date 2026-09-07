@@ -35,7 +35,8 @@
     "soon": "Soon",
     "menuItems": "Menu Items",
     "sales": "Sales",
-    "transfers": "Transfers"
+    "transfers": "Transfers",
+    "organization": "Organization"
   },
   "dashboard": {
     "title": "Overview",
@@ -149,7 +150,8 @@
   "contextSwitcher": {
     "ariaLabel": "Chain, property, and outlet context",
     "switchProperty": "Switch property",
-    "switchOutlet": "Switch outlet"
+    "switchOutlet": "Switch outlet",
+    "none": "No organization access yet"
   },
   "search": {
     "title": "Global search",
@@ -1104,6 +1106,65 @@
       "cancelReceive": "Cancel",
       "actualReceivedFor": "Actual quantity received for {{item}}",
       "varianceFlagged": "Variance"
+    }
+  },
+  "organization": {
+    "title": "Organization",
+    "subtitle": "Your Chain, Property, and Outlet structure",
+    "addProperty": "Add Property",
+    "addOutlet": "Add Outlet",
+    "edit": "Edit",
+    "deactivate": "Deactivate",
+    "deactivating": "Deactivating…",
+    "confirmYes": "Yes, deactivate",
+    "confirmNo": "Cancel",
+    "confirmDeactivateProperty": "Deactivate \"{{name}}\"? This will also deactivate all {{count}} outlet(s) beneath it. Historical data is preserved.",
+    "confirmDeactivateOutlet": "Deactivate \"{{name}}\"?",
+    "noOutlets": "No outlets yet.",
+    "changeCurrency": "Change currency",
+    "loadError": "Could not load your organization structure",
+    "empty": {
+      "title": "No properties yet",
+      "description": "Add your first property to start building your organization structure."
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "propertyType": {
+      "HOTEL": "Hotel",
+      "STANDALONE_RESTAURANT": "Standalone Restaurant",
+      "RESTAURANT_GROUP_SITE": "Restaurant Group Site"
+    },
+    "outletType": {
+      "RESTAURANT": "Restaurant",
+      "BAR": "Bar",
+      "KITCHEN": "Kitchen",
+      "STORE": "Store",
+      "ROOM_SERVICE": "Room Service"
+    },
+    "form": {
+      "name": "Name",
+      "type": "Type",
+      "address": "Address",
+      "timezone": "Timezone",
+      "baseCurrency": "Base currency",
+      "poApprovalThreshold": "PO approval threshold",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving…",
+      "permissionError": "You don't have permission to do this.",
+      "saveError": "Could not save changes"
+    },
+    "propertyForm": {
+      "editTitle": "Edit Property",
+      "createTitle": "Add Property"
+    },
+    "outletForm": {
+      "editTitle": "Edit Outlet",
+      "createTitle": "Add Outlet",
+      "baseCurrencyPlaceholder": "Select a currency",
+      "poApprovalThresholdPlaceholder": "No threshold"
     }
   }
 }

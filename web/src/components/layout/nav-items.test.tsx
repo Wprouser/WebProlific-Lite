@@ -1,9 +1,30 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { NavList, navItems } from './nav-items';
+import { clearSession, setSession } from '@/lib/auth-store';
+
+function withRole(effectiveRole: string) {
+  setSession({
+    accessToken: 'token',
+    refreshToken: 'refresh-token',
+    user: {
+      id: 'u1',
+      email: 'test@example.com',
+      preferredLanguage: 'en',
+      effectiveRole,
+      effectiveOutletIds: ['o1'],
+      effectivePropertyIds: ['p1'],
+      effectiveChainIds: [],
+    },
+  });
+}
 
 describe('nav-items', () => {
+  beforeEach(() => {
+    clearSession();
+  });
+
   it('AC: Tax Configuration is a top-level, enabled nav entry pointing at /tax-rates', () => {
     const taxesItem = navItems.find((item) => item.labelKey === 'taxes');
     expect(taxesItem).toBeDefined();
@@ -72,5 +93,49 @@ describe('nav-items', () => {
       </MemoryRouter>,
     );
     expect(screen.getByRole('link', { name: 'Menu Items' })).toHaveAttribute('href', '/menu-items');
+  });
+
+  describe('AC (FR-00): Organization is visible only to CHAIN_OWNER and PROPERTY_MANAGER', () => {
+    it('shows it for CHAIN_OWNER', () => {
+      withRole('CHAIN_OWNER');
+      render(
+        <MemoryRouter>
+          <NavList />
+        </MemoryRouter>,
+      );
+      expect(screen.getByRole('link', { name: 'Organization' })).toHaveAttribute('href', '/organization');
+    });
+
+    it('shows it for PROPERTY_MANAGER', () => {
+      withRole('PROPERTY_MANAGER');
+      render(
+        <MemoryRouter>
+          <NavList />
+        </MemoryRouter>,
+      );
+      expect(screen.getByRole('link', { name: 'Organization' })).toBeInTheDocument();
+    });
+
+    it('hides it for OUTLET_MANAGER, STORE_STAFF, and CHEF', () => {
+      for (const role of ['OUTLET_MANAGER', 'STORE_STAFF', 'CHEF']) {
+        withRole(role);
+        const { unmount } = render(
+          <MemoryRouter>
+            <NavList />
+          </MemoryRouter>,
+        );
+        expect(screen.queryByRole('link', { name: 'Organization' })).not.toBeInTheDocument();
+        unmount();
+      }
+    });
+
+    it('hides it when there is no session at all', () => {
+      render(
+        <MemoryRouter>
+          <NavList />
+        </MemoryRouter>,
+      );
+      expect(screen.queryByRole('link', { name: 'Organization' })).not.toBeInTheDocument();
+    });
   });
 });

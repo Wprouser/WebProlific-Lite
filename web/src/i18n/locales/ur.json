@@ -35,7 +35,8 @@
     "soon": "جلد",
     "menuItems": "مینو آئٹمز",
     "sales": "فروخت",
-    "transfers": "منتقلی"
+    "transfers": "منتقلی",
+    "organization": "ادارہ"
   },
   "dashboard": {
     "title": "جائزہ",
@@ -149,7 +150,8 @@
   "contextSwitcher": {
     "ariaLabel": "چین، پراپرٹی اور آؤٹ لیٹ کا سیاق",
     "switchProperty": "پراپرٹی تبدیل کریں",
-    "switchOutlet": "آؤٹ لیٹ تبدیل کریں"
+    "switchOutlet": "آؤٹ لیٹ تبدیل کریں",
+    "none": "ابھی تک ادارے تک رسائی نہیں"
   },
   "search": {
     "title": "گلوبل تلاش",
@@ -1104,6 +1106,65 @@
       "cancelReceive": "منسوخ کریں",
       "actualReceivedFor": "{{item}} کی حقیقی موصولہ مقدار",
       "varianceFlagged": "فرق"
+    }
+  },
+  "organization": {
+    "title": "ادارہ",
+    "subtitle": "آپ کی چین، پراپرٹی اور آؤٹ لیٹ کی ساخت",
+    "addProperty": "پراپرٹی شامل کریں",
+    "addOutlet": "آؤٹ لیٹ شامل کریں",
+    "edit": "ترمیم کریں",
+    "deactivate": "غیر فعال کریں",
+    "deactivating": "غیر فعال کیا جا رہا ہے…",
+    "confirmYes": "ہاں، غیر فعال کریں",
+    "confirmNo": "منسوخ کریں",
+    "confirmDeactivateProperty": "\"{{name}}\" کو غیر فعال کریں؟ اس سے اس کے تحت موجود تمام {{count}} آؤٹ لیٹس بھی غیر فعال ہو جائیں گے۔ سابقہ ڈیٹا محفوظ رہے گا۔",
+    "confirmDeactivateOutlet": "\"{{name}}\" کو غیر فعال کریں؟",
+    "noOutlets": "ابھی تک کوئی آؤٹ لیٹ نہیں۔",
+    "changeCurrency": "کرنسی تبدیل کریں",
+    "loadError": "آپ کے ادارے کی ساخت لوڈ نہیں ہو سکی",
+    "empty": {
+      "title": "ابھی تک کوئی پراپرٹی نہیں",
+      "description": "اپنے ادارے کی ساخت بنانا شروع کرنے کے لیے اپنی پہلی پراپرٹی شامل کریں۔"
+    },
+    "status": {
+      "active": "فعال",
+      "inactive": "غیر فعال"
+    },
+    "propertyType": {
+      "HOTEL": "ہوٹل",
+      "STANDALONE_RESTAURANT": "اسٹینڈ اکیلا ریستوراں",
+      "RESTAURANT_GROUP_SITE": "ریستوراں گروپ سائٹ"
+    },
+    "outletType": {
+      "RESTAURANT": "ریستوراں",
+      "BAR": "بار",
+      "KITCHEN": "کچن",
+      "STORE": "اسٹور",
+      "ROOM_SERVICE": "روم سروس"
+    },
+    "form": {
+      "name": "نام",
+      "type": "قسم",
+      "address": "پتہ",
+      "timezone": "ٹائم زون",
+      "baseCurrency": "بنیادی کرنسی",
+      "poApprovalThreshold": "PO منظوری کی حد",
+      "cancel": "منسوخ کریں",
+      "save": "محفوظ کریں",
+      "saving": "محفوظ کیا جا رہا ہے…",
+      "permissionError": "آپ کو یہ کرنے کی اجازت نہیں ہے۔",
+      "saveError": "تبدیلیاں محفوظ نہیں ہو سکیں"
+    },
+    "propertyForm": {
+      "editTitle": "پراپرٹی میں ترمیم کریں",
+      "createTitle": "پراپرٹی شامل کریں"
+    },
+    "outletForm": {
+      "editTitle": "آؤٹ لیٹ میں ترمیم کریں",
+      "createTitle": "آؤٹ لیٹ شامل کریں",
+      "baseCurrencyPlaceholder": "ایک کرنسی منتخب کریں",
+      "poApprovalThresholdPlaceholder": "کوئی حد نہیں"
     }
   }
 }

@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import { AppShell } from '@/components/layout/AppShell';
 import { Dashboard } from '@/routes/Dashboard';
+import { Organization } from '@/routes/Organization';
 import { Styleguide } from '@/routes/Styleguide';
 import { AlertList } from '@/routes/AlertList';
 import { Login } from '@/routes/Login';
@@ -71,6 +72,7 @@ export function App() {
             }
           >
             <Route path="/" element={<Dashboard />} />
+            <Route path="/organization" element={<Organization />} />
             <Route path="/items" element={<Items />} />
             <Route path="/items/:id" element={<ItemDetail />} />
             <Route path="/stock" element={<StockTransactions />} />

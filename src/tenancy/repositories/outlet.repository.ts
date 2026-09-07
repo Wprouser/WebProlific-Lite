@@ -1,4 +1,4 @@
-import { Outlet } from '../domain/outlet.entity';
+import { Outlet, OutletWithHierarchyNames } from '../domain/outlet.entity';
 
 export interface CreateOutletInput {
   propertyId: string;
@@ -33,4 +33,8 @@ export interface OutletRepository {
    * necessary addition rather than a full fix for the still-mocked FR-00
    * context switcher (see ContextSwitcher.tsx). */
   findByIds(ids: string[]): Promise<Outlet[]>;
+  /** Same rows as findByIds, enriched with the owning property/chain's
+   * display name — see OutletWithHierarchyNames. Used only by
+   * OutletsService.listAccessible (GET /outlets). */
+  findByIdsWithHierarchyNames(ids: string[]): Promise<OutletWithHierarchyNames[]>;
 }

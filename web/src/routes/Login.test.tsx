@@ -67,7 +67,11 @@ describe('Login', () => {
     vi.clearAllMocks();
     localStorage.clear();
     sessionStorage.clear();
-    mocked.me.mockResolvedValue({ email: 'owner@example.com' });
+    mocked.me.mockResolvedValue({
+      email: 'owner@example.com',
+      effectivePropertyIds: ['p1'],
+      effectiveChainIds: ['c1'],
+    });
   });
 
   afterEach(() => {

@@ -50,7 +50,7 @@ describe('MenuItems screen', () => {
         email: 'test@example.com',
         preferredLanguage: 'en',
         effectiveRole: 'OUTLET_MANAGER',
-        effectiveOutletIds: ['o1'],
+        effectiveOutletIds: ['o1'], effectivePropertyIds: [], effectiveChainIds: [],
       },
     });
   });

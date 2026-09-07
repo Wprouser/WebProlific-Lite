@@ -9,6 +9,11 @@ export interface ApiUserProfile {
   twoFactorMethod: string | null;
   effectiveRole: string | undefined;
   effectiveOutletIds: string[];
+  // FR-00: needed by the Organization screen and header Context Switcher
+  // to know which chain(s)/propert(ies) to fetch, independent of whether
+  // any outlet exists yet under them.
+  effectivePropertyIds: string[];
+  effectiveChainIds: string[];
 }
 
 /** Mirrors src/auth/services/auth-responses.ts. */

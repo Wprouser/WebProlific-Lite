@@ -35,7 +35,8 @@
     "soon": "قريبًا",
     "menuItems": "أصناف القائمة",
     "sales": "المبيعات",
-    "transfers": "التحويلات"
+    "transfers": "التحويلات",
+    "organization": "المؤسسة"
   },
   "dashboard": {
     "title": "نظرة عامة",
@@ -149,7 +150,8 @@
   "contextSwitcher": {
     "ariaLabel": "سياق السلسلة والمنشأة والمنفذ",
     "switchProperty": "تبديل المنشأة",
-    "switchOutlet": "تبديل المنفذ"
+    "switchOutlet": "تبديل المنفذ",
+    "none": "لا يوجد وصول للمؤسسة بعد"
   },
   "search": {
     "title": "البحث الشامل",
@@ -1104,6 +1106,65 @@
       "cancelReceive": "إلغاء",
       "actualReceivedFor": "الكمية الفعلية المستلمة من {{item}}",
       "varianceFlagged": "فرق"
+    }
+  },
+  "organization": {
+    "title": "المؤسسة",
+    "subtitle": "هيكل السلسلة والعقارات والمنافذ الخاصة بك",
+    "addProperty": "إضافة عقار",
+    "addOutlet": "إضافة منفذ",
+    "edit": "تعديل",
+    "deactivate": "إلغاء التفعيل",
+    "deactivating": "جارٍ إلغاء التفعيل…",
+    "confirmYes": "نعم، قم بإلغاء التفعيل",
+    "confirmNo": "إلغاء",
+    "confirmDeactivateProperty": "هل تريد إلغاء تفعيل \"{{name}}\"؟ سيؤدي هذا أيضًا إلى إلغاء تفعيل جميع المنافذ الـ {{count}} التابعة له. سيتم الاحتفاظ بالبيانات التاريخية.",
+    "confirmDeactivateOutlet": "هل تريد إلغاء تفعيل \"{{name}}\"؟",
+    "noOutlets": "لا توجد منافذ بعد.",
+    "changeCurrency": "تغيير العملة",
+    "loadError": "تعذر تحميل هيكل مؤسستك",
+    "empty": {
+      "title": "لا توجد عقارات بعد",
+      "description": "أضف أول عقار لبدء بناء هيكل مؤسستك."
+    },
+    "status": {
+      "active": "نشط",
+      "inactive": "غير نشط"
+    },
+    "propertyType": {
+      "HOTEL": "فندق",
+      "STANDALONE_RESTAURANT": "مطعم مستقل",
+      "RESTAURANT_GROUP_SITE": "موقع مجموعة مطاعم"
+    },
+    "outletType": {
+      "RESTAURANT": "مطعم",
+      "BAR": "بار",
+      "KITCHEN": "مطبخ",
+      "STORE": "مخزن",
+      "ROOM_SERVICE": "خدمة الغرف"
+    },
+    "form": {
+      "name": "الاسم",
+      "type": "النوع",
+      "address": "العنوان",
+      "timezone": "المنطقة الزمنية",
+      "baseCurrency": "العملة الأساسية",
+      "poApprovalThreshold": "حد موافقة أمر الشراء",
+      "cancel": "إلغاء",
+      "save": "حفظ",
+      "saving": "جارٍ الحفظ…",
+      "permissionError": "ليس لديك صلاحية القيام بذلك.",
+      "saveError": "تعذر حفظ التغييرات"
+    },
+    "propertyForm": {
+      "editTitle": "تعديل العقار",
+      "createTitle": "إضافة عقار"
+    },
+    "outletForm": {
+      "editTitle": "تعديل المنفذ",
+      "createTitle": "إضافة منفذ",
+      "baseCurrencyPlaceholder": "اختر عملة",
+      "poApprovalThresholdPlaceholder": "بلا حد"
     }
   }
 }

@@ -3,7 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { OUTLET_REPOSITORY, PROPERTY_REPOSITORY } from '../repositories/tokens';
 import { OutletRepository } from '../repositories/outlet.repository';
 import { PropertyRepository } from '../repositories/property.repository';
-import { Outlet } from '../domain/outlet.entity';
+import { Outlet, OutletWithHierarchyNames } from '../domain/outlet.entity';
 import { OutletCurrencySettings } from '../domain/outlet-currency-settings.entity';
 import { CreateOutletDto } from '../dto/create-outlet.dto';
 import { UpdateOutletDto } from '../dto/update-outlet.dto';
@@ -53,15 +53,17 @@ export class OutletsService {
   }
 
   /**
-   * Every outlet the caller can reach, name included. FR-08's New Transfer
-   * screen is the first place in the app that genuinely needs a real
-   * source/destination outlet picker, rather than every existing screen's
-   * established pattern of operating on the caller's single default outlet.
-   * Not a fix for the still-mocked FR-00 ContextSwitcher (see
-   * ContextSwitcher.tsx) — just the smallest real thing this screen needs.
+   * Every outlet the caller can reach, with its own name plus its owning
+   * property's and chain's name — the one endpoint every role can reach
+   * regardless of scope level, which is what makes it the right place to
+   * enrich with hierarchy names: `roleForProperty`/`roleForChain` don't
+   * inherit from an OUTLET-scope grant, so an OUTLET_MANAGER/STORE_STAFF/
+   * CHEF has no other endpoint that would ever resolve their own
+   * property's or chain's name. Powers the header Context Switcher and
+   * breadcrumb for every role, not just CHAIN_OWNER/PROPERTY_MANAGER.
    */
-  async listAccessible(request: RequestWithAccess): Promise<Outlet[]> {
-    return this.outletRepository.findByIds(request.effectiveAccess!.effectiveOutletIds);
+  async listAccessible(request: RequestWithAccess): Promise<OutletWithHierarchyNames[]> {
+    return this.outletRepository.findByIdsWithHierarchyNames(request.effectiveAccess!.effectiveOutletIds);
   }
 
   async update(id: string, dto: UpdateOutletDto): Promise<Outlet> {
