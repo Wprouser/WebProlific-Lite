@@ -196,4 +196,11 @@ export class PrismaTransferRepository implements TransferRepository {
     });
     return toDomain(row);
   }
+
+  async countInTransitFromOutlets(outletIds: string[]): Promise<number> {
+    if (outletIds.length === 0) return 0;
+    return this.prisma.stockTransfer.count({
+      where: { sourceOutletId: { in: outletIds }, status: 'IN_TRANSIT' },
+    });
+  }
 }

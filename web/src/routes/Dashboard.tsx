@@ -1,54 +1,118 @@
-import { AlertTriangle, DollarSign, Package, TrendingDown } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { AlertTriangle, ArrowLeftRight, ClipboardList, DollarSign, Package } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Button } from '@/components/ui/Button';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/cn';
-
-const stats = [
-  {
-    // Kept short (matches sibling label lengths) so it never wraps to a
-    // second line at any grid width — that wrap was what made the hero
-    // card taller than its siblings, not its padding.
-    labelKey: 'lowStockItems',
-    value: '3',
-    icon: AlertTriangle,
-    hero: true,
-  },
-  { labelKey: 'totalItems', value: '482', icon: Package, accentClass: 'bg-accent-blue/10 text-accent-blue' },
-  { labelKey: 'stockValuation', value: '$128,940', icon: DollarSign, accentClass: 'bg-info/10 text-info' },
-  {
-    labelKey: 'wastage7d',
-    value: '$1,240',
-    icon: TrendingDown,
-    accentClass: 'bg-accent-blue/10 text-accent-blue',
-    trend: { label: '-4%', variant: 'success-solid' as const },
-  },
-];
+import { dashboardApi, type ApiOutletDashboard } from '@/lib/dashboard-api';
+import { getSession } from '@/lib/auth-store';
+import { ApiError } from '@/lib/api-client';
 
 /**
- * FR-17 demo screen: "the single most important number on any screen ...
- * should be the most visually prominent element." All four KPI cards are
- * equal-sized siblings in one compact row — the hero card earns its focal
- * status from the solid light-blue/periwinkle gradient + white text alone,
- * not from extra height or a separate section above the fold. Mock data —
- * no FR-01/FR-07 backend to read from yet.
- *
- * "Jeddah Hotel, Main Restaurant" is left untranslated deliberately — per
- * FR-15's scope boundary, user-entered/business-entity names (property,
- * outlet) display exactly as entered regardless of UI language; only the
- * "Overview" label and the KPI captions are system-generated chrome.
+ * FR-08's dashboard, wired to real data. Always shows the caller's own
+ * default outlet (`effectiveOutletIds[0]`) — the same single-outlet default
+ * every other screen uses (see TransferList) — rather than a property/chain
+ * roll-up, since there's no real property/chain picker to drive one from
+ * yet (ContextSwitcher.tsx is still mock-data-driven). The property/chain
+ * dashboard endpoints exist and are e2e-reconciliation-tested server-side;
+ * consuming them here is deferred to when a real Context Switcher lands.
  */
 export function Dashboard() {
   const { t } = useTranslation();
+  const outletId = getSession()?.user.effectiveOutletIds[0];
+
+  const [dashboard, setDashboard] = useState<ApiOutletDashboard | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!outletId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      setDashboard(await dashboardApi.getOutlet(outletId));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('dashboard.loadError'));
+    } finally {
+      setLoading(false);
+    }
+  }, [outletId, t]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-3">
+        <Skeleton className="h-8 w-48" />
+        <div className="grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-2 tablet:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 w-full" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !dashboard) {
+    return (
+      <EmptyState
+        icon={<AlertTriangle className="h-7 w-7" />}
+        title={t('dashboard.loadError')}
+        description={error ?? undefined}
+        action={<Button onClick={load}>{t('common.refresh')}</Button>}
+      />
+    );
+  }
+
+  const stats = [
+    {
+      labelKey: 'lowStockItems',
+      value: String(dashboard.openLowStockAlerts),
+      icon: AlertTriangle,
+      hero: true,
+    },
+    {
+      labelKey: 'totalItems',
+      value: dashboard.activeItemCount.toLocaleString(),
+      icon: Package,
+      accentClass: 'bg-accent-blue/10 text-accent-blue',
+    },
+    {
+      labelKey: 'stockValuation',
+      value: `${dashboard.currency} ${Number(dashboard.stockValuation).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      icon: DollarSign,
+      accentClass: 'bg-info/10 text-info',
+      note: dashboard.isConverted ? t('dashboard.convertedNote', { currency: dashboard.currency }) : undefined,
+    },
+    {
+      labelKey: 'pendingPoApprovals',
+      value: String(dashboard.pendingPoApprovals),
+      icon: ClipboardList,
+      accentClass: 'bg-accent-blue/10 text-accent-blue',
+    },
+    {
+      labelKey: 'transfersInTransit',
+      value: String(dashboard.transfersInTransit),
+      icon: ArrowLeftRight,
+      accentClass: 'bg-accent-blue/10 text-accent-blue',
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-3">
       <h1 className="font-display text-xl font-semibold text-foreground">
-        {t('dashboard.title')}{' '}
-        <span className="font-sans text-sm font-normal text-foreground-muted">— Jeddah Hotel, Main Restaurant</span>
+        {t('dashboard.title')} <span className="font-sans text-sm font-normal text-foreground-muted">— {dashboard.outletName}</span>
       </h1>
 
-      <div className="grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-2 tablet:grid-cols-4">
+      <div className="grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-2 tablet:grid-cols-5">
         {stats.map((stat) => (
           <Card
             key={stat.labelKey}
@@ -72,11 +136,11 @@ export function Dashboard() {
                 <stat.icon className="h-4 w-4" />
               </div>
             </CardHeader>
-            <CardContent className="flex flex-wrap items-center gap-2">
+            <CardContent className="flex flex-col gap-1">
               <p className={cn('font-display text-2xl font-bold', stat.hero ? 'text-white' : 'text-foreground')}>
                 {stat.value}
               </p>
-              {stat.trend && <Badge variant={stat.trend.variant}>{stat.trend.label}</Badge>}
+              {stat.note && <Badge variant="neutral">{stat.note}</Badge>}
             </CardContent>
           </Card>
         ))}

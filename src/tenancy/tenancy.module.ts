@@ -44,6 +44,7 @@ import { PrismaUserAccessRepository } from './repositories/prisma/prisma-user-ac
   exports: [
     ScopeResolutionService,
     ScopeResolutionGuard,
+    CHAIN_REPOSITORY,
     PROPERTY_REPOSITORY,
     OUTLET_REPOSITORY,
     USER_ACCESS_REPOSITORY,

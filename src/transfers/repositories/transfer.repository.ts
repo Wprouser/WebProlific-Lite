@@ -62,4 +62,20 @@ export abstract class TransferRepository {
     receivedAt: Date,
     lines: ReceiveTransferLineInput[],
   ): Promise<StockTransfer>;
+
+  /**
+   * FR-08 dashboard's "transfers in transit" — deliberately SOURCE-side
+   * only (dispatched from one of these outlets, not yet received), not
+   * "touches either side" like {@link findScoped}. Each transfer has
+   * exactly one source outlet, which belongs to exactly one property/chain,
+   * so this count is what actually satisfies the spec's literal
+   * reconciliation acceptance criterion ("property figures = sum of its
+   * outlets' figures") — an "either side" definition would double-count
+   * any transfer between two outlets of the same property/chain (it would
+   * show up in both the source's and destination's own outlet-dashboard
+   * counts, but only once at the property/chain level). An outlet awaiting
+   * an inbound delivery sees it reflected on the *sending* outlet's/
+   * property's/chain's own dashboard, not surfaced a second time here.
+   */
+  abstract countInTransitFromOutlets(outletIds: string[]): Promise<number>;
 }

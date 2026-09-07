@@ -42,7 +42,10 @@
     "lowStockItems": "أصناف منخفضة المخزون",
     "totalItems": "إجمالي الأصناف",
     "stockValuation": "تقييم المخزون",
-    "wastage7d": "الهدر (٧ أيام)"
+    "pendingPoApprovals": "موافقات أوامر الشراء المعلقة",
+    "transfersInTransit": "التحويلات قيد النقل",
+    "convertedNote": "محوّل إلى {{currency}}",
+    "loadError": "تعذر تحميل لوحة التحكم"
   },
   "alerts": {
     "low-stock": "أصناف منخفضة المخزون",

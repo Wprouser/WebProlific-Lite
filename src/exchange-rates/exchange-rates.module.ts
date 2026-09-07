@@ -13,8 +13,9 @@ import { PrismaExchangeRateRepository } from './repositories/prisma/prisma-excha
     ExchangeRatesService,
     { provide: EXCHANGE_RATE_REPOSITORY, useClass: PrismaExchangeRateRepository },
   ],
-  // FR-04: PurchaseOrdersModule needs this to auto-derive a PO's
-  // exchangeRateToBase default from the latest on-file rate.
-  exports: [EXCHANGE_RATE_REPOSITORY],
+  // FR-04's GrnService/PurchaseOrdersService and FR-08's DashboardService
+  // all need FX conversion — exported as the service (resolveRate), not the
+  // raw repository, now that the conversion logic itself lives here too.
+  exports: [ExchangeRatesService],
 })
 export class ExchangeRatesModule {}

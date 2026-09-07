@@ -4,7 +4,7 @@ import { PurchaseOrderRepository } from '../repositories/purchase-order.reposito
 import { PurchaseOrder } from '../domain/purchase-order.entity';
 import { OutletRepository } from '../../tenancy/repositories/outlet.repository';
 import { SupplierRepository } from '../../suppliers/repositories/supplier.repository';
-import { ExchangeRateRepository } from '../../exchange-rates/repositories/exchange-rate.repository';
+import { ExchangeRatesService } from '../../exchange-rates/services/exchange-rates.service';
 import { TaxRateRepository } from '../../tax-rates/repositories/tax-rate.repository';
 import { CurrenciesService } from '../../currencies/services/currencies.service';
 import { ItemRepository } from '../../items/repositories/item.repository';
@@ -121,8 +121,8 @@ describe('PurchaseOrdersService', () => {
     const supplierRepository: Partial<SupplierRepository> = {
       findById: jest.fn().mockResolvedValue(fixtureSupplier()),
     };
-    const exchangeRateRepository: Partial<ExchangeRateRepository> = {
-      findLatestPerPair: jest.fn().mockResolvedValue([]),
+    const exchangeRatesService: Partial<ExchangeRatesService> = {
+      resolveRate: jest.fn().mockResolvedValue('1'),
     };
     const taxRateRepository: Partial<TaxRateRepository> = {
       findById: jest.fn().mockResolvedValue(fixtureTaxRate()),
@@ -143,7 +143,7 @@ describe('PurchaseOrdersService', () => {
       poRepository as PurchaseOrderRepository,
       outletRepository as OutletRepository,
       supplierRepository as SupplierRepository,
-      exchangeRateRepository as ExchangeRateRepository,
+      exchangeRatesService as ExchangeRatesService,
       taxRateRepository as TaxRateRepository,
       itemRepository as ItemRepository,
       unitRepository as UnitOfMeasureRepository,
@@ -155,7 +155,7 @@ describe('PurchaseOrdersService', () => {
       poRepository,
       outletRepository,
       supplierRepository,
-      exchangeRateRepository,
+      exchangeRatesService,
       taxRateRepository,
       itemRepository,
       emailProvider,
@@ -233,18 +233,18 @@ describe('PurchaseOrdersService', () => {
     });
 
     it('AC: an explicit exchangeRateToBase always wins over auto-derivation', async () => {
-      const { service, poRepository, exchangeRateRepository } = buildService();
+      const { service, poRepository, exchangeRatesService } = buildService();
+      (exchangeRatesService.resolveRate as jest.Mock).mockResolvedValue('3.80');
       await service.create(fixtureRequest(), { ...createDto, currencyCode: 'USD', exchangeRateToBase: '3.80' });
+      expect(exchangeRatesService.resolveRate).toHaveBeenCalledWith('USD', 'SAR', '3.80');
       expect(poRepository.create).toHaveBeenCalledWith(expect.objectContaining({ exchangeRateToBase: '3.80' }));
-      expect(exchangeRateRepository.findLatestPerPair).not.toHaveBeenCalled();
     });
 
     it('auto-derives exchangeRateToBase from the latest on-file rate when omitted and currency differs', async () => {
-      const { service, poRepository, exchangeRateRepository } = buildService();
-      (exchangeRateRepository.findLatestPerPair as jest.Mock).mockResolvedValue([
-        { id: 'r1', baseCurrency: 'USD', targetCurrency: 'SAR', rate: '3.750000', effectiveDate: new Date(), source: 'MANUAL' },
-      ]);
+      const { service, poRepository, exchangeRatesService } = buildService();
+      (exchangeRatesService.resolveRate as jest.Mock).mockResolvedValue('3.750000');
       await service.create(fixtureRequest(), { ...createDto, currencyCode: 'USD' });
+      expect(exchangeRatesService.resolveRate).toHaveBeenCalledWith('USD', 'SAR', undefined);
       expect(poRepository.create).toHaveBeenCalledWith(expect.objectContaining({ exchangeRateToBase: '3.750000' }));
     });
 

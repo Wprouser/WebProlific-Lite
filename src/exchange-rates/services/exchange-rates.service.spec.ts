@@ -78,4 +78,34 @@ describe('ExchangeRatesService', () => {
       await expect(service.create({ ...dto, targetCurrency: 'XXX' })).rejects.toThrow(NotFoundException);
     });
   });
+
+  describe('resolveRate', () => {
+    it('AC: an explicit value always wins, without consulting the repository', async () => {
+      const { service, exchangeRateRepository } = buildService();
+      await expect(service.resolveRate('USD', 'SAR', '3.80')).resolves.toBe('3.80');
+      expect(exchangeRateRepository.findLatestPerPair).not.toHaveBeenCalled();
+    });
+
+    it('AC: the same currency on both sides is always 1', async () => {
+      const { service, exchangeRateRepository } = buildService();
+      await expect(service.resolveRate('SAR', 'SAR')).resolves.toBe('1');
+      expect(exchangeRateRepository.findLatestPerPair).not.toHaveBeenCalled();
+    });
+
+    it('resolves to the latest on-file rate for the exact pair', async () => {
+      const { service, exchangeRateRepository } = buildService();
+      (exchangeRateRepository.findLatestPerPair as jest.Mock).mockResolvedValue([fixtureRate({ rate: '3.750000' })]);
+      await expect(service.resolveRate('SAR', 'USD')).resolves.toBe('3.750000');
+      expect(exchangeRateRepository.findLatestPerPair).toHaveBeenCalledWith({
+        baseCurrency: 'SAR',
+        targetCurrency: 'USD',
+      });
+    });
+
+    it('AC: falls back to 1 as a last resort when no rate is on file', async () => {
+      const { service, exchangeRateRepository } = buildService();
+      (exchangeRateRepository.findLatestPerPair as jest.Mock).mockResolvedValue([]);
+      await expect(service.resolveRate('SAR', 'EUR')).resolves.toBe('1');
+    });
+  });
 });

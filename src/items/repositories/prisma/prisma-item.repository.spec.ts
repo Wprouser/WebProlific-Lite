@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { PrismaItemRepository } from './prisma-item.repository';
 
 function fixturePrismaItem(overrides: Record<string, unknown> = {}) {
@@ -81,6 +82,45 @@ describe('PrismaItemRepository', () => {
     const [item] = await repository.findScoped({ accessibleOutletIds: ['o1'] });
     expect(item!.minStock).toBe('10');
     expect(item!.costPrice).toBe('85.50');
+  });
+
+  describe('summarizeStock', () => {
+    function buildForSummarize(items: Record<string, unknown>[]) {
+      const findMany = jest.fn().mockResolvedValue(items);
+      const prisma = { item: { findMany } };
+      const repository = new PrismaItemRepository(prisma as any);
+      return { repository, findMany };
+    }
+
+    it('returns no results (and does not query) for an empty outlet set', async () => {
+      const { repository, findMany } = buildForSummarize([]);
+      expect(await repository.summarizeStock([])).toEqual([]);
+      expect(findMany).not.toHaveBeenCalled();
+    });
+
+    it('AC: one entry per requested outlet, even one with zero items', async () => {
+      const { repository } = buildForSummarize([]);
+      const result = await repository.summarizeStock(['o1', 'o2']);
+      expect(result).toEqual([
+        { outletId: 'o1', activeItemCount: 0, stockValuation: '0.00' },
+        { outletId: 'o2', activeItemCount: 0, stockValuation: '0.00' },
+      ]);
+    });
+
+    it('sums currentStock * costPrice per outlet, across active and inactive items alike', async () => {
+      const { repository } = buildForSummarize([
+        { outletId: 'o1', currentStock: new Prisma.Decimal('10.000'), costPrice: new Prisma.Decimal('8.50'), isActive: true },
+        { outletId: 'o1', currentStock: new Prisma.Decimal('2.000'), costPrice: new Prisma.Decimal('15.00'), isActive: false },
+        { outletId: 'o2', currentStock: new Prisma.Decimal('4.000'), costPrice: new Prisma.Decimal('3.25'), isActive: true },
+      ]);
+      const result = await repository.summarizeStock(['o1', 'o2']);
+      // o1: (10 * 8.50) + (2 * 15.00) = 85.00 + 30.00 = 115.00 — the
+      // inactive item's stock still counts toward valuation.
+      expect(result).toEqual([
+        { outletId: 'o1', activeItemCount: 1, stockValuation: '115.00' },
+        { outletId: 'o2', activeItemCount: 1, stockValuation: '13.00' },
+      ]);
+    });
   });
 
   describe('create', () => {

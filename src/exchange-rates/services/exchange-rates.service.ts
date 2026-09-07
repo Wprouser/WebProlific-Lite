@@ -37,4 +37,26 @@ export class ExchangeRatesService {
       source: 'MANUAL',
     });
   }
+
+  /**
+   * Resolves the multiplier to convert an amount FROM `fromCurrency` TO
+   * `toCurrency`: an explicit caller-supplied value always wins; the same
+   * currency on both sides is always 1; otherwise the latest on-file
+   * ExchangeRate for this exact pair; else '1' as a last-resort default (a
+   * caller surfacing this as an editable field, like FR-04's PO/GRN forms,
+   * still lets the user correct it).
+   *
+   * Previously two byte-identical private methods (GrnService,
+   * PurchaseOrdersService) — extracted here before FR-08's dashboard needed
+   * the same conversion for a third time.
+   */
+  async resolveRate(fromCurrency: string, toCurrency: string, explicit?: string): Promise<string> {
+    if (explicit) return explicit;
+    if (fromCurrency === toCurrency) return '1';
+    const [latest] = await this.exchangeRateRepository.findLatestPerPair({
+      baseCurrency: fromCurrency,
+      targetCurrency: toCurrency,
+    });
+    return latest?.rate ?? '1';
+  }
 }

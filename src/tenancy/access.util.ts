@@ -24,3 +24,29 @@ export function assertOutletAccess(request: RequestWithAccess, outletId: string,
     throw new ForbiddenException(`Requires role [${allowedRoles.join(', ')}] at outlet ${outletId}`);
   }
 }
+
+/**
+ * Same primitive as {@link assertOutletAccess}, resolved at property scope
+ * instead — FR-08's property-level dashboard is the first flat route that
+ * needs to authorize against a propertyId rather than an outletId.
+ */
+export function assertPropertyAccess(request: RequestWithAccess, propertyId: string, allowedRoles?: Role[]): void {
+  const role = request.effectiveAccess?.roleForProperty(propertyId);
+  if (!role) {
+    throw new ForbiddenException(`No access to property ${propertyId}`);
+  }
+  if (allowedRoles && !allowedRoles.includes(role)) {
+    throw new ForbiddenException(`Requires role [${allowedRoles.join(', ')}] at property ${propertyId}`);
+  }
+}
+
+/** Same primitive again, resolved at chain scope — FR-08's chain-level dashboard. */
+export function assertChainAccess(request: RequestWithAccess, chainId: string, allowedRoles?: Role[]): void {
+  const role = request.effectiveAccess?.roleForChain(chainId);
+  if (!role) {
+    throw new ForbiddenException(`No access to chain ${chainId}`);
+  }
+  if (allowedRoles && !allowedRoles.includes(role)) {
+    throw new ForbiddenException(`Requires role [${allowedRoles.join(', ')}] at chain ${chainId}`);
+  }
+}

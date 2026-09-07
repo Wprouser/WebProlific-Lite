@@ -28,9 +28,12 @@ import { PrismaAlertRepository } from './repositories/prisma/prisma-alert.reposi
     ExpiryScanJob,
     { provide: ALERT_REPOSITORY, useClass: PrismaAlertRepository },
   ],
-  // Exported so the expiry scan can be invoked directly — by the e2e suite,
-  // and by any future admin "run it now" action. Waiting for 2am is not a
-  // testing strategy.
-  exports: [AlertsService],
+  // AlertsService: exported so the expiry scan can be invoked directly — by
+  // the e2e suite, and by any future admin "run it now" action. Waiting for
+  // 2am is not a testing strategy.
+  // ALERT_REPOSITORY: FR-08's dashboard reuses summarize() directly (across
+  // an arbitrary outlet set, not just the caller's own accessible outlets)
+  // rather than duplicating its lowStock/poApprovals aggregation query.
+  exports: [AlertsService, ALERT_REPOSITORY],
 })
 export class AlertsModule {}

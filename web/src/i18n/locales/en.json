@@ -42,7 +42,10 @@
     "lowStockItems": "Low stock items",
     "totalItems": "Total items",
     "stockValuation": "Stock valuation",
-    "wastage7d": "Wastage (7d)"
+    "pendingPoApprovals": "Pending PO approvals",
+    "transfersInTransit": "Transfers in transit",
+    "convertedNote": "Converted to {{currency}}",
+    "loadError": "Could not load the dashboard"
   },
   "alerts": {
     "low-stock": "Low-Stock Items",

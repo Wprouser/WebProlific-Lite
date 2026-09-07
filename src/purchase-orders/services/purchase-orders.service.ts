@@ -18,8 +18,7 @@ import { OutletRepository } from '../../tenancy/repositories/outlet.repository';
 import { SUPPLIER_REPOSITORY } from '../../suppliers/repositories/tokens';
 import { SupplierRepository } from '../../suppliers/repositories/supplier.repository';
 import { CurrenciesService } from '../../currencies/services/currencies.service';
-import { EXCHANGE_RATE_REPOSITORY } from '../../exchange-rates/repositories/tokens';
-import { ExchangeRateRepository } from '../../exchange-rates/repositories/exchange-rate.repository';
+import { ExchangeRatesService } from '../../exchange-rates/services/exchange-rates.service';
 import { TAX_RATE_REPOSITORY } from '../../tax-rates/repositories/tokens';
 import { TaxRateRepository } from '../../tax-rates/repositories/tax-rate.repository';
 import { TaxRate } from '../../tax-rates/domain/tax-rate.entity';
@@ -37,7 +36,7 @@ export class PurchaseOrdersService {
     @Inject(PURCHASE_ORDER_REPOSITORY) private readonly poRepository: PurchaseOrderRepository,
     @Inject(OUTLET_REPOSITORY) private readonly outletRepository: OutletRepository,
     @Inject(SUPPLIER_REPOSITORY) private readonly supplierRepository: SupplierRepository,
-    @Inject(EXCHANGE_RATE_REPOSITORY) private readonly exchangeRateRepository: ExchangeRateRepository,
+    private readonly exchangeRatesService: ExchangeRatesService,
     @Inject(TAX_RATE_REPOSITORY) private readonly taxRateRepository: TaxRateRepository,
     @Inject(ITEM_REPOSITORY) private readonly itemRepository: ItemRepository,
     @Inject(UNIT_OF_MEASURE_REPOSITORY) private readonly unitRepository: UnitOfMeasureRepository,
@@ -53,7 +52,7 @@ export class PurchaseOrdersService {
 
     const currencyCode = dto.currencyCode ?? outlet.baseCurrency;
     await this.currenciesService.getOrThrow(currencyCode);
-    const exchangeRateToBase = await this.resolveExchangeRateToBase(
+    const exchangeRateToBase = await this.exchangeRatesService.resolveRate(
       currencyCode,
       outlet.baseCurrency,
       dto.exchangeRateToBase,
@@ -123,7 +122,7 @@ export class PurchaseOrdersService {
     const exchangeRateToBase =
       dto.exchangeRateToBase ??
       (dto.currencyCode && dto.currencyCode !== existing.currencyCode
-        ? await this.resolveExchangeRateToBase(currencyCode, outlet.baseCurrency, undefined)
+        ? await this.exchangeRatesService.resolveRate(currencyCode, outlet.baseCurrency, undefined)
         : existing.exchangeRateToBase);
     const isTaxInclusive = dto.isTaxInclusive ?? existing.isTaxInclusive;
     const discountAmount = dto.discountAmount ?? existing.discountAmount;
@@ -342,25 +341,6 @@ export class PurchaseOrdersService {
     const outlet = await this.outletRepository.findById(outletId);
     if (!outlet) throw new NotFoundException(`Outlet ${outletId} not found`);
     return outlet;
-  }
-
-  /** Spec: exchange rate is "user-editable inline on the form" — an
-   * explicit client-supplied value always wins. Otherwise: same currency as
-   * the outlet's base -> 1; else the latest on-file ExchangeRate for this
-   * exact pair; else 1 as a last-resort default (the UI still shows it as
-   * editable so the user can correct it before saving). */
-  private async resolveExchangeRateToBase(
-    currencyCode: string,
-    outletBaseCurrency: string,
-    explicit: string | undefined,
-  ): Promise<string> {
-    if (explicit) return explicit;
-    if (currencyCode === outletBaseCurrency) return '1';
-    const [latest] = await this.exchangeRateRepository.findLatestPerPair({
-      baseCurrency: currencyCode,
-      targetCurrency: outletBaseCurrency,
-    });
-    return latest?.rate ?? '1';
   }
 
   private async getOrThrow(id: string): Promise<PurchaseOrder> {

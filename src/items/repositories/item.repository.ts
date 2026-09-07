@@ -70,6 +70,18 @@ export interface ItemFilters {
   belowMinStock?: boolean;
 }
 
+/** One outlet's contribution to FR-08's dashboard. `stockValuation` sums
+ * currentStock * costPrice across every item at the outlet — active or not,
+ * since a deactivated item can still hold real, on-hand stock worth
+ * counting — expressed in the outlet's own baseCurrency (not converted;
+ * DashboardService handles FX). `activeItemCount` only counts isActive
+ * items, matching the "active items" KPI shown alongside it. */
+export interface OutletStockSummary {
+  outletId: string;
+  activeItemCount: number;
+  stockValuation: string;
+}
+
 export interface ItemRepository {
   create(data: CreateItemInput): Promise<Item>;
   findById(id: string): Promise<Item | null>;
@@ -77,4 +89,7 @@ export interface ItemRepository {
   findBySku(sku: string): Promise<Item | null>;
   findByBarcode(barcode: string): Promise<Item | null>;
   findScoped(filters: ItemFilters): Promise<Item[]>;
+  /** One entry per requested outletId, even one with zero items (zero
+   * count/valuation) — callers can rely on the shape without a fallback. */
+  summarizeStock(outletIds: string[]): Promise<OutletStockSummary[]>;
 }

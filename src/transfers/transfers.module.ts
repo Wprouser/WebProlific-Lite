@@ -23,5 +23,7 @@ import { PrismaTransferRepository } from './repositories/prisma/prisma-transfer.
   imports: [RbacModule, TenancyModule, ItemsModule, StockTransactionsModule],
   controllers: [TransfersController],
   providers: [TransfersService, { provide: TRANSFER_REPOSITORY, useClass: PrismaTransferRepository }],
+  // FR-08's own dashboard needs the "transfers in transit" count too.
+  exports: [TRANSFER_REPOSITORY],
 })
 export class TransfersModule {}

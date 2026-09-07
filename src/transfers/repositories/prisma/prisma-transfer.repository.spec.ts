@@ -41,4 +41,27 @@ describe('PrismaTransferRepository', () => {
       expect(where.AND[1]).toEqual({ OR: [{ sourceOutletId: 'o1' }, { destOutletId: 'o1' }] });
     });
   });
+
+  describe('countInTransitFromOutlets', () => {
+    function buildRepository() {
+      const count = jest.fn().mockResolvedValue(0);
+      const prisma = { stockTransfer: { count } };
+      const repository = new PrismaTransferRepository(prisma as any);
+      return { repository, count };
+    }
+
+    it('returns 0 (and does not query) for an empty outlet set', async () => {
+      const { repository, count } = buildRepository();
+      expect(await repository.countInTransitFromOutlets([])).toBe(0);
+      expect(count).not.toHaveBeenCalled();
+    });
+
+    it('AC: counts only by sourceOutletId, not either side — see the reconciliation note on the abstract method', async () => {
+      const { repository, count } = buildRepository();
+      await repository.countInTransitFromOutlets(['o1', 'o2']);
+      expect(count).toHaveBeenCalledWith({
+        where: { sourceOutletId: { in: ['o1', 'o2'] }, status: 'IN_TRANSIT' },
+      });
+    });
+  });
 });

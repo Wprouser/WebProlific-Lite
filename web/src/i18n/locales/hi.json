@@ -42,7 +42,10 @@
     "lowStockItems": "कम स्टॉक वाले आइटम",
     "totalItems": "कुल आइटम",
     "stockValuation": "स्टॉक मूल्यांकन",
-    "wastage7d": "बर्बादी (7 दिन)"
+    "pendingPoApprovals": "लंबित PO अनुमोदन",
+    "transfersInTransit": "ट्रांज़िट में स्थानांतरण",
+    "convertedNote": "{{currency}} में परिवर्तित",
+    "loadError": "डैशबोर्ड लोड नहीं हो सका"
   },
   "alerts": {
     "low-stock": "कम स्टॉक वाले आइटम",

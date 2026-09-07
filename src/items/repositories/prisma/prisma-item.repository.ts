@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Item as PrismaItem, Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { Item } from '../../domain/item.entity';
-import { CreateItemInput, ItemFilters, ItemRepository, UpdateItemInput } from '../item.repository';
+import { CreateItemInput, ItemFilters, ItemRepository, OutletStockSummary, UpdateItemInput } from '../item.repository';
 import { applyStockTransaction } from '../../../stock-transactions/lib/apply-stock-transaction';
 
 function toDomain(item: PrismaItem): Item {
@@ -118,5 +118,35 @@ export class PrismaItemRepository implements ItemRepository {
     return filters.belowMinStock
       ? domainItems.filter((item) => Number(item.currentStock) < Number(item.minStock))
       : domainItems;
+  }
+
+  async summarizeStock(outletIds: string[]): Promise<OutletStockSummary[]> {
+    if (outletIds.length === 0) return [];
+
+    // Prisma/SQL Server has no computed-column aggregate for SUM(a * b), so
+    // (as with belowMinStock above) this fetches the minimal columns and
+    // reduces in-memory — acceptable at the MVP scale the spec sanctions
+    // (Technical Spec, FR-08: "direct queries against the primary DB ...
+    // acceptable; revisit only if latency degrades").
+    const items = await this.prisma.item.findMany({
+      where: { outletId: { in: outletIds } },
+      select: { outletId: true, currentStock: true, costPrice: true, isActive: true },
+    });
+
+    const byOutlet = new Map<string, { activeItemCount: number; valuation: Prisma.Decimal }>(
+      outletIds.map((outletId) => [outletId, { activeItemCount: 0, valuation: new Prisma.Decimal(0) }]),
+    );
+
+    for (const item of items) {
+      const bucket = byOutlet.get(item.outletId);
+      if (!bucket) continue;
+      if (item.isActive) bucket.activeItemCount += 1;
+      bucket.valuation = bucket.valuation.plus(item.currentStock.mul(item.costPrice));
+    }
+
+    return outletIds.map((outletId) => {
+      const bucket = byOutlet.get(outletId)!;
+      return { outletId, activeItemCount: bucket.activeItemCount, stockValuation: bucket.valuation.toFixed(2) };
+    });
   }
 }

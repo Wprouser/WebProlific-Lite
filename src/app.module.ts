@@ -22,6 +22,7 @@ import { RecipesModule } from './recipes/recipes.module';
 import { SalesModule } from './sales/sales.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { TransfersModule } from './transfers/transfers.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 import { ScopeResolutionGuard } from './tenancy/guards/scope-resolution.guard';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './rbac/guards/roles.guard';
@@ -59,6 +60,7 @@ import { AppController } from './app.controller';
     SalesModule,
     AlertsModule,
     TransfersModule,
+    DashboardModule,
   ],
   providers: [
     // Order matters: JwtAuthGuard populates request.user, ScopeResolutionGuard

@@ -6,7 +6,7 @@ import { PurchaseOrderRepository } from '../../purchase-orders/repositories/purc
 import { PurchaseOrder } from '../../purchase-orders/domain/purchase-order.entity';
 import { OutletRepository } from '../../tenancy/repositories/outlet.repository';
 import { SupplierRepository } from '../../suppliers/repositories/supplier.repository';
-import { ExchangeRateRepository } from '../../exchange-rates/repositories/exchange-rate.repository';
+import { ExchangeRatesService } from '../../exchange-rates/services/exchange-rates.service';
 import { TaxRateRepository } from '../../tax-rates/repositories/tax-rate.repository';
 import { CurrenciesService } from '../../currencies/services/currencies.service';
 import { InvoiceScanRepository } from '../../invoice-scans/repositories/invoice-scan.repository';
@@ -167,8 +167,8 @@ describe('GrnService', () => {
     const supplierRepository: Partial<SupplierRepository> = {
       findById: jest.fn().mockResolvedValue(fixtureSupplier()),
     };
-    const exchangeRateRepository: Partial<ExchangeRateRepository> = {
-      findLatestPerPair: jest.fn().mockResolvedValue([]),
+    const exchangeRatesService: Partial<ExchangeRatesService> = {
+      resolveRate: jest.fn().mockResolvedValue('1'),
     };
     const taxRateRepository: Partial<TaxRateRepository> = {
       findById: jest.fn().mockResolvedValue(fixtureTaxRate()),
@@ -193,7 +193,7 @@ describe('GrnService', () => {
       poRepository as PurchaseOrderRepository,
       outletRepository as OutletRepository,
       supplierRepository as SupplierRepository,
-      exchangeRateRepository as ExchangeRateRepository,
+      exchangeRatesService as ExchangeRatesService,
       taxRateRepository as TaxRateRepository,
       invoiceScanRepository as InvoiceScanRepository,
       itemRepository as ItemRepository,
@@ -207,7 +207,7 @@ describe('GrnService', () => {
       poRepository,
       outletRepository,
       supplierRepository,
-      exchangeRateRepository,
+      exchangeRatesService,
       taxRateRepository,
       invoiceScanRepository,
       itemRepository,

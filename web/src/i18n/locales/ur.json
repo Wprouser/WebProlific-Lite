@@ -42,7 +42,10 @@
     "lowStockItems": "کم اسٹاک والی اشیاء",
     "totalItems": "کل اشیاء",
     "stockValuation": "اسٹاک ویلیویشن",
-    "wastage7d": "ضیاع (7 دن)"
+    "pendingPoApprovals": "زیر التوا PO منظوریاں",
+    "transfersInTransit": "ٹرانزٹ میں منتقلیاں",
+    "convertedNote": "{{currency}} میں تبدیل شدہ",
+    "loadError": "ڈیش بورڈ لوڈ نہیں ہو سکا"
   },
   "alerts": {
     "low-stock": "کم اسٹاک والی اشیاء",

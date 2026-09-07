@@ -18,8 +18,7 @@ import { OutletRepository } from '../../tenancy/repositories/outlet.repository';
 import { SUPPLIER_REPOSITORY } from '../../suppliers/repositories/tokens';
 import { SupplierRepository } from '../../suppliers/repositories/supplier.repository';
 import { CurrenciesService } from '../../currencies/services/currencies.service';
-import { EXCHANGE_RATE_REPOSITORY } from '../../exchange-rates/repositories/tokens';
-import { ExchangeRateRepository } from '../../exchange-rates/repositories/exchange-rate.repository';
+import { ExchangeRatesService } from '../../exchange-rates/services/exchange-rates.service';
 import { TAX_RATE_REPOSITORY } from '../../tax-rates/repositories/tokens';
 import { TaxRateRepository } from '../../tax-rates/repositories/tax-rate.repository';
 import { TaxRate } from '../../tax-rates/domain/tax-rate.entity';
@@ -45,7 +44,7 @@ export class GrnService {
     @Inject(PURCHASE_ORDER_REPOSITORY) private readonly poRepository: PurchaseOrderRepository,
     @Inject(OUTLET_REPOSITORY) private readonly outletRepository: OutletRepository,
     @Inject(SUPPLIER_REPOSITORY) private readonly supplierRepository: SupplierRepository,
-    @Inject(EXCHANGE_RATE_REPOSITORY) private readonly exchangeRateRepository: ExchangeRateRepository,
+    private readonly exchangeRatesService: ExchangeRatesService,
     @Inject(TAX_RATE_REPOSITORY) private readonly taxRateRepository: TaxRateRepository,
     @Inject(INVOICE_SCAN_REPOSITORY) private readonly invoiceScanRepository: InvoiceScanRepository,
     @Inject(ITEM_REPOSITORY) private readonly itemRepository: ItemRepository,
@@ -64,7 +63,7 @@ export class GrnService {
 
     const currencyCode = dto.currencyCode ?? outlet.baseCurrency;
     await this.currenciesService.getOrThrow(currencyCode);
-    const exchangeRateToBase = await this.resolveExchangeRateToBase(
+    const exchangeRateToBase = await this.exchangeRatesService.resolveRate(
       currencyCode,
       outlet.baseCurrency,
       dto.exchangeRateToBase,
@@ -116,7 +115,7 @@ export class GrnService {
     const exchangeRateToBase =
       dto.exchangeRateToBase ??
       (dto.currencyCode && dto.currencyCode !== po.currencyCode
-        ? await this.resolveExchangeRateToBase(currencyCode, outlet.baseCurrency, undefined)
+        ? await this.exchangeRatesService.resolveRate(currencyCode, outlet.baseCurrency, undefined)
         : po.exchangeRateToBase);
     const isTaxInclusive = dto.isTaxInclusive ?? po.isTaxInclusive;
     const discountAmount = dto.discountAmount ?? '0.00';
@@ -346,20 +345,6 @@ export class GrnService {
     const outlet = await this.outletRepository.findById(outletId);
     if (!outlet) throw new NotFoundException(`Outlet ${outletId} not found`);
     return outlet;
-  }
-
-  private async resolveExchangeRateToBase(
-    currencyCode: string,
-    outletBaseCurrency: string,
-    explicit: string | undefined,
-  ): Promise<string> {
-    if (explicit) return explicit;
-    if (currencyCode === outletBaseCurrency) return '1';
-    const [latest] = await this.exchangeRateRepository.findLatestPerPair({
-      baseCurrency: currencyCode,
-      targetCurrency: outletBaseCurrency,
-    });
-    return latest?.rate ?? '1';
   }
 
   private async getPoOrThrow(id: string): Promise<PurchaseOrder> {
